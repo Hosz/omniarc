@@ -2,3 +2,6 @@
 __pycache__/
 *.pyc
 .omniarc_temp/
+build/
+dist/
+dist-release/

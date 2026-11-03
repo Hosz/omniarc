@@ -1,0 +1,160 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows (Installer & Portable)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller pywebview qtpy PySide6 PySide6_WebEngine
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller omniarc.spec --noconfirm
+
+      - name: Bundle Static FFmpeg for Windows
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "dist\OmniArc\bin"
+          Invoke-WebRequest -Uri "https://github.com/GyanD/codexffmpeg/releases/download/7.1/ffmpeg-7.1-essentials_build.zip" -OutFile "ffmpeg.zip"
+          Expand-Archive -Path "ffmpeg.zip" -DestinationPath "ffmpeg_extracted"
+          Copy-Item -Path "ffmpeg_extracted\*\bin\ffmpeg.exe" -Destination "dist\OmniArc\bin\ffmpeg.exe"
+          Copy-Item -Path "ffmpeg_extracted\*\bin\ffprobe.exe" -Destination "dist\OmniArc\bin\ffprobe.exe"
+          Remove-Item -Recurse -Force "ffmpeg.zip", "ffmpeg_extracted"
+
+      - name: Create Windows Portable ZIP
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_REF_NAME) { $env:GITHUB_REF_NAME } else { "v1.0.0" }
+          Compress-Archive -Path "dist\OmniArc" -DestinationPath "OmniArc-${tag}-windows-x64-portable.zip"
+
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup --no-progress -y
+
+      - name: Compile Inno Setup Installer
+        run: |
+          iscc packaging/windows/installer.iss
+
+      - name: Rename Installer with Tag
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_REF_NAME) { $env:GITHUB_REF_NAME } else { "v1.0.0" }
+          Move-Item -Path "dist-release\OmniArc-Setup-1.0.0.exe" -Destination "OmniArc-Setup-${tag}.exe" -ErrorAction SilentlyContinue
+          if (!(Test-Path "OmniArc-Setup-${tag}.exe")) {
+            Get-ChildItem -Path "dist-release" -Filter "*.exe" | ForEach-Object {
+              Copy-Item $_.FullName -Destination "OmniArc-Setup-${tag}.exe"
+            }
+          }
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: |
+            OmniArc-*-windows-x64-portable.zip
+            OmniArc-Setup-*.exe
+
+  build-linux:
+    name: Build Linux (Portable)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install System Libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1-mesa-dev libxkbcommon-x11-0 libpulse0 libasound2 ffmpeg
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller pywebview qtpy PySide6 PySide6_WebEngine
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller omniarc.spec --noconfirm
+
+      - name: Create Linux Tarball
+        run: |
+          TAG=${GITHUB_REF_NAME:-v1.0.0}
+          cd dist
+          tar -czvf "../OmniArc-${TAG}-linux-x86_64.tar.gz" OmniArc
+          cd ..
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-release
+          path: OmniArc-*-linux-x86_64.tar.gz
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-release
+
+      - name: Download Linux Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            OmniArc-Setup-*.exe
+            OmniArc-*-windows-x64-portable.zip
+            OmniArc-*-linux-x86_64.tar.gz
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          name: OmniArc ${{ github.ref_name }}
+          body: |
+            ## 🎬 OmniArc Release ${{ github.ref_name }}
+
+            ### 📦 Downloads Rápidos
+
+            | Sistema | Tipo | Arquivo |
+            | :--- | :--- | :--- |
+            | **Windows** | 🚀 **Instalador Oficial** (Recomendado) | `OmniArc-Setup-${{ github.ref_name }}.exe` |
+            | **Windows** | 💼 **Portátil (ZIP)** (Sem instalação) | `OmniArc-${{ github.ref_name }}-windows-x64-portable.zip` |
+            | **Linux** | 🐧 **Portátil (TAR.GZ)** | `OmniArc-${{ github.ref_name }}-linux-x86_64.tar.gz` |
+
+            ---
+            *Todas as versões para Windows já acompanham os binários do FFmpeg embutidos em `bin/` para uso imediato.*

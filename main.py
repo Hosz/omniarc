@@ -7,7 +7,11 @@ import os
 from pathlib import Path
 
 # Garante que a pasta raiz do OmniArc está no sys.path
-APP_DIR = Path(__file__).resolve().parent
+if getattr(sys, "frozen", False):
+    APP_DIR = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+else:
+    APP_DIR = Path(__file__).resolve().parent
+
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
