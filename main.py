@@ -45,7 +45,10 @@ def main():
             from PySide6.QtWidgets import QApplication
             app = QApplication.instance()
             if app and icon_path.exists():
-                app.setWindowIcon(QIcon(str(icon_path)))
+                icon = QIcon(str(icon_path))
+                app.setWindowIcon(icon)
+                for widget in QApplication.topLevelWidgets():
+                    widget.setWindowIcon(icon)
         except Exception:
             pass
 

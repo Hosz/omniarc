@@ -128,6 +128,7 @@ class PlatformAdapter:
         """
         Abre o seletor nativo de pastas do sistema operacional.
         Usa pywebview se window estiver disponível, com fallbacks robustos.
+        Garante que, se o usuário fechar ou cancelar, NÃO abre outro diálogo em seguida.
         """
         if window is not None:
             try:
@@ -138,9 +139,13 @@ class PlatformAdapter:
                     directory="",
                     dialog_type=webview.FOLDER_DIALOG
                 )
-                if result and len(result) > 0:
+                # Se create_file_dialog foi chamado sem disparar exceção, respeita a escolha
+                if result is not None and len(result) > 0:
                     return str(result[0])
+                # Usuário cancelou ou fechou a janela: retorna None sem tentar fallbacks
+                return None
             except Exception:
+                # Apenas se a chamada do webview falhar estruturalmente tenta os fallbacks
                 pass
 
         # Fallback 1: kdialog (KDE Linux)
@@ -152,9 +157,11 @@ class PlatformAdapter:
                     text=True,
                     check=False
                 )
-                folder = res.stdout.strip()
-                if folder and os.path.isdir(folder):
-                    return folder
+                if res.returncode == 0:
+                    folder = res.stdout.strip()
+                    return folder if folder and os.path.isdir(folder) else None
+                # Se o usuário cancelou o kdialog (código de saída != 0), encerra
+                return None
             except Exception:
                 pass
 
@@ -167,9 +174,10 @@ class PlatformAdapter:
                     text=True,
                     check=False
                 )
-                folder = res.stdout.strip()
-                if folder and os.path.isdir(folder):
-                    return folder
+                if res.returncode == 0:
+                    folder = res.stdout.strip()
+                    return folder if folder and os.path.isdir(folder) else None
+                return None
             except Exception:
                 pass
 
@@ -182,8 +190,7 @@ class PlatformAdapter:
             root.attributes('-topmost', True)
             folder = filedialog.askdirectory(title=title)
             root.destroy()
-            if folder and os.path.isdir(folder):
-                return folder
+            return folder if folder and os.path.isdir(folder) else None
         except Exception:
             pass
 
