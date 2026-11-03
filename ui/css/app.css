@@ -1,0 +1,154 @@
+/* app.css - Estilos com variáveis de tema e modo claro/escuro */
+
+:root {
+  /* Paleta Padrão: Menta Suave */
+  --color-accent: #6ee7b7;
+  --color-accent-dark: #34d399;
+  --color-accent-wash: rgba(110, 231, 183, 0.12);
+  --color-accent-border: rgba(110, 231, 183, 0.3);
+  --color-accent-text: #0f172a;
+
+  /* Modo Claro */
+  --color-base: #f8fafc;
+  --color-surface-low: #f1f5f9;
+  --color-surface: #ffffff;
+  --color-surface-high: #e2e8f0;
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-border-hover: rgba(0, 0, 0, 0.16);
+  --color-text-main: #0f172a;
+  --color-text-sub: #475569;
+  --color-text-muted: #94a3b8;
+}
+
+html.dark {
+  /* Modo Escuro */
+  --color-base: #0f1117;
+  --color-surface-low: #141721;
+  --color-surface: #181b26;
+  --color-surface-high: #1f2433;
+  --color-border: rgba(255, 255, 255, 0.07);
+  --color-border-hover: rgba(255, 255, 255, 0.16);
+  --color-text-main: #f8fafc;
+  --color-text-sub: #94a3b8;
+  --color-text-muted: #64748b;
+}
+
+/* Base Body */
+body {
+  background-color: var(--color-base);
+  color: var(--color-text-main);
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Scrollbars Minimalistas */
+.custom-scroll::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-border-hover);
+  border-radius: 9999px;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Transições Suaves */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Efeito de foco suave nos inputs */
+input:focus {
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 0 0 1px var(--color-accent-wash);
+}
+
+/* Estilo dos Botões e Ações de Destaque */
+.bg-accent {
+  background-color: var(--color-accent) !important;
+  color: var(--color-accent-text) !important;
+}
+
+.bg-accent:hover {
+  background-color: var(--color-accent-dark) !important;
+}
+
+.text-accent {
+  color: var(--color-accent) !important;
+}
+
+.bg-accent-wash {
+  background-color: var(--color-accent-wash) !important;
+}
+
+.border-accent-subtle {
+  border-color: var(--color-accent-border) !important;
+}
+
+/* Cards e Elementos com Variáveis de Superfície */
+.bg-theme-base {
+  background-color: var(--color-base) !important;
+}
+
+.bg-theme-low {
+  background-color: var(--color-surface-low) !important;
+}
+
+.bg-theme-surface {
+  background-color: var(--color-surface) !important;
+}
+
+.border-theme {
+  border-color: var(--color-border) !important;
+}
+
+.border-theme-hover:hover {
+  border-color: var(--color-border-hover) !important;
+}
+
+.text-theme-main {
+  color: var(--color-text-main) !important;
+}
+
+.text-theme-sub {
+  color: var(--color-text-sub) !important;
+}
+
+.text-theme-muted {
+  color: var(--color-text-muted) !important;
+}
+
+/* Animações e Cards */
+.episode-card {
+  transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.episode-card:hover {
+  transform: translateY(-1px);
+}
+
+.episode-card:active {
+  transform: scale(0.99);
+}
+
+/* Pílula de cor ativa */
+.color-swatch {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.color-swatch:hover {
+  transform: scale(1.15);
+}
+
+.color-swatch.active {
+  transform: scale(1.2);
+  box-shadow: 0 0 0 2px var(--color-base), 0 0 0 3.5px var(--color-text-main);
+}

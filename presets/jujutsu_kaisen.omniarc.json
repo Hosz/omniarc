@@ -1,0 +1,90 @@
+{
+  "project_name": "Jujutsu Kaisen",
+  "source_dir": "/run/media/hokyozu/6EE20508E204D5ED/Downloads/Jujutsu Kaisen (Season 1,2,3 + Movie)",
+  "output_dir": "/run/media/hokyozu/6EE20508E204D5ED/jjk_project/output",
+  "temp_dir": "",
+  "clean_temp_on_finish": true,
+  "arcs": [
+    {
+      "arc_id": 1,
+      "code": "Bloco_01",
+      "title": "Introdução & Centro de Detenção",
+      "output_filename": "JJK_Bloco_01_Introducao_e_Centro_de_Detencao.mkv",
+      "episode_paths": [],
+      "strip_op_ed": true,
+      "estimated_duration": "2h 30m"
+    },
+    {
+      "arc_id": 2,
+      "code": "Bloco_02",
+      "title": "Vs. Mahito & Junpei",
+      "output_filename": "JJK_Bloco_02_Vs_Mahito_e_Junpei.mkv",
+      "episode_paths": [],
+      "strip_op_ed": true,
+      "estimated_duration": "2h 30m"
+    },
+    {
+      "arc_id": 3,
+      "code": "Bloco_03",
+      "title": "Torneio de Intercâmbio de Quioto",
+      "output_filename": "JJK_Bloco_03_Torneio_de_Intercambio_de_Quioto.mkv",
+      "episode_paths": [],
+      "strip_op_ed": true,
+      "estimated_duration": "2h 30m"
+    },
+    {
+      "arc_id": 4,
+      "code": "Bloco_04",
+      "title": "Origem da Obediência & Filme 0",
+      "output_filename": "JJK_Bloco_04_Origem_da_Obediencia_e_Filme_0.mkv",
+      "episode_paths": [],
+      "strip_op_ed": true,
+      "estimated_duration": "2h 30m"
+    },
+    {
+      "arc_id": 5,
+      "code": "Bloco_05",
+      "title": "Inventário Oculto / Passado de Gojo",
+      "output_filename": "JJK_Bloco_05_Inventario_Oculto_Passado_de_Gojo.mkv",
+      "episode_paths": [],
+      "strip_op_ed": true,
+      "estimated_duration": "2h 30m"
+    },
+    {
+      "arc_id": 6,
+      "code": "Bloco_06",
+      "title": "Incidente de Shibuya (Invasão & Selamento)",
+      "output_filename": "JJK_Bloco_06_Incidente_de_Shibuya_Invasao_e_Selamento.mkv",
+      "episode_paths": [],
+      "strip_op_ed": true,
+      "estimated_duration": "2h 30m"
+    },
+    {
+      "arc_id": 7,
+      "code": "Bloco_07",
+      "title": "Incidente de Shibuya (Consequências & Clímax)",
+      "output_filename": "JJK_Bloco_07_Incidente_de_Shibuya_Consequencias_e_Climax.mkv",
+      "episode_paths": [],
+      "strip_op_ed": true,
+      "estimated_duration": "2h 30m"
+    },
+    {
+      "arc_id": 8,
+      "code": "Bloco_08",
+      "title": "Execução de Itadori & Preparativos",
+      "output_filename": "JJK_Bloco_08_Execucao_de_Itadori_e_Preparativos.mkv",
+      "episode_paths": [],
+      "strip_op_ed": true,
+      "estimated_duration": "2h 30m"
+    },
+    {
+      "arc_id": 9,
+      "code": "Bloco_09",
+      "title": "Jogo do Abate (Colônias)",
+      "output_filename": "JJK_Bloco_09_Jogo_do_Abate_Colonias.mkv",
+      "episode_paths": [],
+      "strip_op_ed": true,
+      "estimated_duration": "2h 30m"
+    }
+  ]
+}

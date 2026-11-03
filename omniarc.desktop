@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=OmniArc
+Comment=Compilador de Arcos e Filmes de Animes e Séries
+Exec=/home/hokyozu/omniarc/run.sh
+Icon=omniarc
+Terminal=false
+Type=Application
+Categories=AudioVideo;Video;AudioVideoEditing;
+Keywords=anime;movie;arc;compiler;ffmpeg;supercut;
