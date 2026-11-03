@@ -24,7 +24,7 @@ O **OmniArc** é um aplicativo desktop moderno e multiplataforma (**Linux e Wind
 
 1. Entre na pasta do projeto:
    ```bash
-   cd ~/omniarc
+   cd ~/Documentos/Dev/omniarc
    ```
 
 2. Execute o launcher:
