@@ -4,7 +4,7 @@ slicer.py - Fatiador Lossless de Episódios (Remoção de OP e ED)
 import os
 import shutil
 from pathlib import Path
-from typing import Optional, Callable, List
+from typing import Optional, Callable, List, Tuple
 from .models import EpisodeInfo
 from .chapters import ChapterAnalyzer
 from .platform_adapter import PlatformAdapter
@@ -20,12 +20,12 @@ class EpisodeSlicer:
         keep_op: bool = False,
         keep_ed: bool = False,
         on_progress: Optional[Callable[[str], None]] = None
-    ) -> str:
+    ) -> Tuple[str, List[Tuple[float, float, str]], float]:
         """
-        Processa um episódio para o diretório temporário.
+        Processa um episódio para o diretório temporário (fatiamento lossless de vídeo e áudio).
         Se strip_op_ed for True e houver capítulos de OP/ED, fatia sem re-encode.
-        Caso contrário, utiliza link simbólico ou caminho direto.
-        Retorna o caminho do arquivo pronto para concatenação.
+        Retorna:
+          (caminho_arquivo_fatiado, intervalos_mantidos, duracao_total_mantida)
         """
         temp_path = Path(temp_dir).resolve()
         temp_path.mkdir(parents=True, exist_ok=True)
@@ -38,40 +38,17 @@ class EpisodeSlicer:
             mode_suffix = "_full"
         output_cut_file = temp_path / f"{base_name}{mode_suffix}.mkv"
 
-        # Se já foi fatiado e existe, reutiliza
-        if output_cut_file.is_file() and output_cut_file.stat().st_size > 1024:
-            if on_progress:
-                on_progress(f"Arquivo fatiado em cache: {output_cut_file.name}")
-            return str(output_cut_file)
-
         # Se não deve cortar OP/ED ou se for filme
-        has_ext_sub = bool(ep.external_sub_path and Path(ep.external_sub_path).is_file())
         if not strip_op_ed or ep.is_movie:
-            if has_ext_sub:
-                if on_progress:
-                    on_progress(f"Injetando legenda externa em {ep.display_code} (integral)...")
-                ffmpeg = PlatformAdapter.get_ffmpeg()
-                cmd_mux = [ffmpeg, "-nostdin", "-v", "error", "-i", ep.file_path]
-                if ep.external_sub_delay_ms != 0:
-                    cmd_mux.extend(["-itsoffset", f"{ep.external_sub_delay_ms / 1000.0:.3f}"])
-                cmd_mux.extend([
-                    "-i", ep.external_sub_path,
-                    "-c", "copy",
-                    "-map", "0",
-                    "-map", "1:s",
-                    f"-metadata:s:s:{ep.subtitles_count}", "language=por",
-                    f"-metadata:s:s:{ep.subtitles_count}", "title=Português (Brasil)",
-                    "-y",
-                    str(output_cut_file)
-                ])
-                PlatformAdapter.run_command(cmd_mux, check=True)
-                return str(output_cut_file)
+            intervals = [(0.0, ep.duration_seconds, "Episódio Integral")]
+            if output_cut_file.is_file() and output_cut_file.stat().st_size > 1024:
+                return str(output_cut_file), intervals, ep.duration_seconds
 
             if PlatformAdapter.IS_LINUX:
                 symlink_target = temp_path / f"{base_name}_linked.mkv"
                 PlatformAdapter.create_symlink_or_copy(ep.file_path, str(symlink_target))
-                return str(symlink_target)
-            return ep.file_path
+                return str(symlink_target), intervals, ep.duration_seconds
+            return ep.file_path, intervals, ep.duration_seconds
 
         # Analisa capítulos a serem mantidos
         intervals, has_cuts = ChapterAnalyzer.get_kept_intervals(
@@ -80,45 +57,32 @@ class EpisodeSlicer:
             keep_ed=keep_ed
         )
 
-        if not has_cuts or len(intervals) <= 1:
-            if has_ext_sub:
-                if on_progress:
-                    on_progress(f"Injetando legenda externa em {ep.display_code} (sem corte OP/ED)...")
-                ffmpeg = PlatformAdapter.get_ffmpeg()
-                cmd_mux = [ffmpeg, "-nostdin", "-v", "error", "-i", ep.file_path]
-                if ep.external_sub_delay_ms != 0:
-                    cmd_mux.extend(["-itsoffset", f"{ep.external_sub_delay_ms / 1000.0:.3f}"])
-                cmd_mux.extend([
-                    "-i", ep.external_sub_path,
-                    "-c", "copy",
-                    "-map", "0",
-                    "-map", "1:s",
-                    f"-metadata:s:s:{ep.subtitles_count}", "language=por",
-                    f"-metadata:s:s:{ep.subtitles_count}", "title=Português (Brasil)",
-                    "-y",
-                    str(output_cut_file)
-                ])
-                PlatformAdapter.run_command(cmd_mux, check=True)
-                return str(output_cut_file)
+        cut_duration = sum(end_t - start_t for start_t, end_t, _ in intervals)
 
+        # Se já foi fatiado e existe em cache, reutiliza
+        if output_cut_file.is_file() and output_cut_file.stat().st_size > 1024:
+            if on_progress:
+                on_progress(f"Arquivo fatiado em cache: {output_cut_file.name}")
+            return str(output_cut_file), intervals, cut_duration
+
+        if not has_cuts or len(intervals) <= 1:
             if on_progress:
                 on_progress(f"Sem corte de OP/ED para {ep.display_code} (mantido integral).")
             if PlatformAdapter.IS_LINUX:
                 symlink_target = temp_path / f"{base_name}_linked.mkv"
                 PlatformAdapter.create_symlink_or_copy(ep.file_path, str(symlink_target))
-                return str(symlink_target)
-            return ep.file_path
+                return str(symlink_target), intervals, ep.duration_seconds
+            return ep.file_path, intervals, ep.duration_seconds
 
         if on_progress:
-            sub_info = " [com legenda externa PT-BR]" if has_ext_sub else ""
-            on_progress(f"Fatiando {ep.display_code}{sub_info}: mantendo {len(intervals)} segmentos (removendo OP/ED)...")
+            on_progress(f"Fatiando {ep.display_code}: mantendo {len(intervals)} segmentos (removendo OP/ED)...")
 
         ffmpeg = PlatformAdapter.get_ffmpeg()
         part_files: List[Path] = []
         part_list_file = temp_path / f"parts_{base_name}.txt"
 
         try:
-            # 1. Extração de cada segmento lossless
+            # 1. Extração de cada segmento lossless (somente vídeo e áudio para evitar corrupção de timestamps)
             with open(part_list_file, "w", encoding="utf-8") as f_list:
                 for idx, (start_t, end_t, title) in enumerate(intervals):
                     part_out = temp_path / f"part_{base_name}_{idx}.mkv"
@@ -131,33 +95,13 @@ class EpisodeSlicer:
                         "-ss", str(start_t),
                         "-to", str(end_t),
                         "-i", ep.file_path,
+                        "-c", "copy",
+                        "-map", "0:v",
+                        "-map", "0:a",
+                        "-avoid_negative_ts", "make_zero",
+                        "-y",
+                        str(part_out)
                     ]
-
-                    if has_ext_sub:
-                        if ep.external_sub_delay_ms != 0:
-                            cmd_slice.extend(["-itsoffset", f"{ep.external_sub_delay_ms / 1000.0:.3f}"])
-                        cmd_slice.extend([
-                            "-ss", str(start_t),
-                            "-to", str(end_t),
-                            "-i", ep.external_sub_path,
-                            "-c", "copy",
-                            "-map", "0",
-                            "-map", "1:s",
-                            f"-metadata:s:s:{ep.subtitles_count}", "language=por",
-                            f"-metadata:s:s:{ep.subtitles_count}", "title=Português (Brasil)",
-                            "-avoid_negative_ts", "make_zero",
-                            "-y",
-                            str(part_out)
-                        ])
-                    else:
-                        cmd_slice.extend([
-                            "-c", "copy",
-                            "-map", "0",
-                            "-avoid_negative_ts", "make_zero",
-                            "-y",
-                            str(part_out)
-                        ])
-
                     PlatformAdapter.run_command(cmd_slice, check=True)
                     f_list.write(f"{PlatformAdapter.format_ffmpeg_concat_path(str(part_out))}\n")
 
@@ -172,7 +116,6 @@ class EpisodeSlicer:
                 "-c", "copy",
                 "-map", "0:v",
                 "-map", "0:a",
-                "-map", "0:s?",
                 "-y",
                 str(output_cut_file)
             ]
@@ -181,7 +124,7 @@ class EpisodeSlicer:
             if on_progress:
                 on_progress(f"Concluído corte de {ep.display_code} -> {output_cut_file.name}")
 
-            return str(output_cut_file)
+            return str(output_cut_file), intervals, cut_duration
 
         finally:
             # Limpeza das partes intermediárias de corte do episódio

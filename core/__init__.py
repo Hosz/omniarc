@@ -8,6 +8,7 @@ from .scanner import EpisodeScanner
 from .slicer import EpisodeSlicer
 from .concatenator import MovieConcatenator
 from .validator import MovieValidator
+from .subtitles import SubtitleProcessor
 from .project_manager import ProjectManager
 from .pipeline import BuildPipeline
 
@@ -23,6 +24,7 @@ __all__ = [
     "EpisodeSlicer",
     "MovieConcatenator",
     "MovieValidator",
+    "SubtitleProcessor",
     "ProjectManager",
     "BuildPipeline"
 ]

@@ -17,6 +17,7 @@ class MovieConcatenator:
         output_path: str,
         temp_dir: str,
         total_duration: float = 0.0,
+        video_audio_only: bool = True,
         on_progress: Optional[Callable[[float, str], None]] = None,
         cancel_check: Optional[Callable[[], bool]] = None
     ) -> bool:
@@ -42,7 +43,8 @@ class MovieConcatenator:
 
         ffmpeg = PlatformAdapter.get_ffmpeg()
 
-        # Tentativa 1: map 0 (todas as streams e metadados)
+        map_args = ["-map", "0:v", "-map", "0:a"] if video_audio_only else ["-map", "0"]
+
         cmd = [
             ffmpeg,
             "-nostdin",
@@ -52,7 +54,7 @@ class MovieConcatenator:
             "-safe", "0",
             "-i", str(concat_list_file),
             "-c", "copy",
-            "-map", "0",
+            *map_args,
             "-y",
             str(out_p)
         ]
