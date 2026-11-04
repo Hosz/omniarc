@@ -59,9 +59,17 @@ class ChapterAnalyzer:
             return []
 
     @classmethod
-    def get_kept_intervals(cls, chapters: List[ChapterInfo], total_duration: float) -> Tuple[List[Tuple[float, float, str]], bool]:
+    def get_kept_intervals(
+        cls,
+        chapters: List[ChapterInfo],
+        total_duration: float,
+        keep_op: bool = False,
+        keep_ed: bool = False
+    ) -> Tuple[List[Tuple[float, float, str]], bool]:
         """
-        Calcula os intervalos contínuos a serem mantidos (sem OP e sem ED).
+        Calcula os intervalos contínuos a serem mantidos.
+        keep_op: se True, preserva a abertura (útil no 1º episódio do filme).
+        keep_ed: se True, preserva o encerramento (útil no último episódio do filme).
         Retorna:
           (intervalos: [(inicio, fim, titulo)], op_ed_detectado: bool)
         """
@@ -74,8 +82,13 @@ class ChapterAnalyzer:
             # Sem marcadores explícitos: mantém o arquivo integral
             return [(0.0, total_duration, "Episódio Integral (Sem corte OP/ED)")], False
 
-        # Capítulos que NÃO são nem OP nem ED
-        kept_chapters = [c for c in chapters if not (c.is_op or c.is_ed)]
+        # Capítulos que serão mantidos:
+        # Descarta OP somente se keep_op for False
+        # Descarta ED somente se keep_ed for False
+        kept_chapters = [
+            c for c in chapters 
+            if not ((c.is_op and not keep_op) or (c.is_ed and not keep_ed))
+        ]
 
         if not kept_chapters or len(kept_chapters) == len(chapters):
             return [(0.0, total_duration, "Episódio Integral")], False

@@ -58,6 +58,8 @@ class ArcBlock:
     output_filename: str
     episode_paths: List[str] = field(default_factory=list)
     strip_op_ed: bool = True
+    keep_first_op: bool = True
+    keep_last_ed: bool = True
     estimated_duration: str = "00h 00m"
 
     def to_dict(self) -> Dict[str, Any]:

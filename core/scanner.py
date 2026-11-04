@@ -146,12 +146,12 @@ class EpisodeScanner:
         stem = video_path.stem
         parent = video_path.parent
         candidates = [
-            f"{stem}.srt", f"{stem}.ass", f"{stem}.vtt",
-            f"{stem}.pt-br.srt", f"{stem}.pt-br.ass",
-            f"{stem}.pt.srt", f"{stem}.pt.ass",
+            f"{stem}.pt-br.ass", f"{stem}.pt-br.srt",
+            f"{stem}.pt.ass", f"{stem}.pt.srt",
             f"{stem}_pt-br.ass", f"{stem}_pt-br.srt",
             f"{stem}_pt.ass", f"{stem}_pt.srt",
             f"{stem}_bra.ass", f"{stem}_bra.srt",
+            f"{stem}.ass", f"{stem}.srt", f"{stem}.vtt",
         ]
         # 1. Procura na mesma pasta do vídeo
         for c in candidates:

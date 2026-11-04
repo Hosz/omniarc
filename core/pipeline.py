@@ -80,12 +80,19 @@ class BuildPipeline:
             total_movie_duration += ep_info.duration_seconds
             ep_pct = (idx / total_eps) * 40.0  # Fatiamento ocupa 0% a 40%
 
+            is_first_ep = (idx == 0)
+            is_last_ep = (idx == total_eps - 1)
+            keep_op_for_this = bool(arc.keep_first_op and is_first_ep)
+            keep_ed_for_this = bool(arc.keep_last_ed and is_last_ep)
+
             report("slicing", ep_pct, f"[{idx+1}/{total_eps}] Processando {ep_info.display_code}...")
 
             sliced_file = EpisodeSlicer.slice_episode(
                 ep=ep_info,
                 temp_dir=str(temp_p),
                 strip_op_ed=arc.strip_op_ed,
+                keep_op=keep_op_for_this,
+                keep_ed=keep_ed_for_this,
                 on_progress=lambda m: report("slicing", ep_pct, m)
             )
             sliced_files.append(sliced_file)

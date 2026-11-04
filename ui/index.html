@@ -257,38 +257,71 @@
     </div>
   </div>
 
-  <!-- MODAL: Configurar Legenda Externa & Sincronia -->
-  <div id="modal-subtitle" class="fixed inset-0 bg-theme-base/70 backdrop-blur-sm z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
-    <div class="bg-theme-surface border border-theme rounded-2xl p-6 w-full max-w-md shadow-2xl scale-95 transition-transform duration-200">
+  <!-- MODAL: Gerenciador de Legendas do Episódio -->
+  <div id="modal-subtitle" class="fixed inset-0 bg-theme-base/75 backdrop-blur-sm z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+    <div class="bg-theme-surface border border-theme rounded-2xl p-6 w-full max-w-lg shadow-2xl scale-95 transition-transform duration-200">
+      
+      <!-- Cabeçalho -->
       <div class="flex items-center justify-between mb-1">
         <h3 class="text-sm font-semibold text-theme-main flex items-center gap-2">
-          <span>💬</span> Configurar Legenda Externa
+          <span>💬</span> Gerenciador de Legendas
         </h3>
         <span id="sub-modal-ep-code" class="text-xs font-mono px-2 py-0.5 rounded bg-theme-low text-theme-muted border border-theme">S01E01</span>
       </div>
       <p id="sub-modal-ep-title" class="text-xs text-theme-sub truncate mb-4">Nome do Episódio</p>
       
-      <!-- Arquivo de Legenda -->
-      <div class="mb-4">
-        <label class="block text-[10px] uppercase font-semibold text-theme-muted mb-1.5">Arquivo de Legenda (.srt, .ass, .vtt)</label>
-        <div class="flex items-center gap-2">
-          <div id="sub-modal-file-path" class="flex-1 bg-theme-low border border-theme rounded-xl px-3 py-2 text-[11px] text-theme-main font-mono truncate text-theme-muted">
-            Nenhuma legenda vinculada
+      <!-- Seção 1: Legendas Embutidas no Arquivo -->
+      <div class="mb-4 bg-theme-low/40 border border-theme rounded-xl p-3">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-theme-muted flex items-center gap-1.5">
+            <span>📼</span> Faixas Já Embutidas no Vídeo
+          </span>
+          <span id="sub-modal-internal-count" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-theme-base border border-theme text-theme-muted">0 faixas</span>
+        </div>
+        <div id="sub-modal-internal-list" class="space-y-1.5 max-h-28 overflow-y-auto pr-1">
+          <!-- Injetado dinamicamente: Ex: [ENG] Full Subtitles [Kaizoku] (ass) -->
+        </div>
+      </div>
+
+      <!-- Seção 2: Legenda Externa Ativa / PT-BR -->
+      <div class="mb-4 bg-theme-low/60 border border-theme rounded-xl p-3">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-theme-muted flex items-center gap-1.5">
+            <span>🌐</span> Legenda Externa (Prioridade no Corte)
+          </span>
+          <span id="sub-modal-ext-badge" class="text-[10px] px-2 py-0.5 rounded font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Vinculada</span>
+        </div>
+        <p id="sub-modal-ext-desc" class="text-[10px] text-theme-sub mb-2">
+          Esta legenda externa será injetada e cortada automaticamente no filme do arco mantendo a sincronia.
+        </p>
+        
+        <div class="flex items-center gap-2 mb-2">
+          <div id="sub-modal-file-path" class="flex-1 bg-theme-base border border-theme rounded-xl px-3 py-2 text-[11px] text-theme-main font-mono truncate">
+            Nenhuma legenda externa vinculada
           </div>
-          <button id="btn-sub-modal-browse" class="px-3 py-2 rounded-xl bg-theme-low border border-theme hover:bg-theme-hover text-xs font-medium text-theme-main transition-colors shrink-0">
-            Selecionar...
+          <button id="btn-sub-modal-browse" class="px-3 py-2 rounded-xl bg-theme-low border border-theme hover:bg-theme-hover text-xs font-medium text-theme-main transition-colors shrink-0 flex items-center gap-1.5">
+            <span>📂</span> <span id="btn-sub-browse-label">Adicionar Arquivo</span>
+          </button>
+        </div>
+        
+        <div class="flex items-center justify-between pt-1">
+          <span id="sub-modal-ext-note" class="text-[10px] text-theme-muted">Formatos: .ass, .srt, .vtt</span>
+          <button id="btn-sub-modal-remove" class="text-xs text-rose-400 hover:underline">
+            Remover Legenda Externa
           </button>
         </div>
       </div>
 
-      <!-- Ajuste de Sincronia (Delay) -->
-      <div class="mb-5 bg-theme-low/50 border border-theme rounded-xl p-3">
+      <!-- Seção 3: Ajuste de Sincronia (Delay) -->
+      <div class="mb-5 bg-theme-low/40 border border-theme rounded-xl p-3">
         <div class="flex items-center justify-between mb-1">
-          <label class="text-[11px] font-medium text-theme-main">Ajuste de Sincronia (Delay)</label>
+          <label class="text-[11px] font-semibold text-theme-main flex items-center gap-1">
+            <span>⏱️</span> Calibrar Sincronia de Áudio / Legenda (Delay)
+          </label>
           <span id="sub-modal-delay-display" class="text-xs font-mono font-semibold text-accent">0 ms</span>
         </div>
-        <p class="text-[10px] text-theme-sub mb-2.5">
-          Útil para legendas WEB em vídeos Blu-ray. Use valores positivos para atrasar ou negativos para adiantar.
+        <p class="text-[10px] text-theme-sub mb-2">
+          Caso a legenda externa esteja um pouco adiantada ou atrasada em relação à dublagem/áudio original:
         </p>
         <div class="flex items-center gap-2">
           <input id="sub-modal-delay-input" type="number" step="50" value="0" placeholder="0" class="w-28 bg-theme-base border border-theme rounded-lg px-2.5 py-1 text-xs text-theme-main font-mono focus:outline-none">
@@ -302,18 +335,14 @@
         </div>
       </div>
 
-      <div class="flex items-center justify-between pt-1 border-t border-theme">
-        <button id="btn-sub-modal-remove" class="text-xs text-rose-400 hover:underline">
-          Remover Legenda
+      <!-- Rodapé -->
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-theme">
+        <button id="btn-sub-modal-close" class="px-4 py-1.5 rounded-xl text-xs text-theme-sub hover:text-theme-main transition-colors">
+          Fechar
         </button>
-        <div class="flex items-center gap-2">
-          <button id="btn-sub-modal-close" class="px-4 py-1.5 rounded-xl text-xs text-theme-sub hover:text-theme-main transition-colors">
-            Cancelar
-          </button>
-          <button id="btn-sub-modal-save" class="px-4 py-1.5 rounded-xl bg-accent font-semibold text-xs hover:opacity-95 transition-colors">
-            Salvar
-          </button>
-        </div>
+        <button id="btn-sub-modal-save" class="px-5 py-1.5 rounded-xl bg-accent font-semibold text-xs hover:opacity-95 transition-colors">
+          Salvar
+        </button>
       </div>
     </div>
   </div>

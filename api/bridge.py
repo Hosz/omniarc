@@ -157,6 +157,8 @@ class OmniArcBridge:
                     output_filename=a.get("output_filename", "Filme_01.mkv"),
                     episode_paths=a.get("episode_paths", []),
                     strip_op_ed=bool(a.get("strip_op_ed", True)),
+                    keep_first_op=bool(a.get("keep_first_op", True)),
+                    keep_last_ed=bool(a.get("keep_last_ed", True)),
                     estimated_duration=a.get("estimated_duration", "00h 00m")
                 ))
 
@@ -227,6 +229,8 @@ class OmniArcBridge:
             output_filename=arc_data.get("output_filename", "Filme_01.mkv"),
             episode_paths=arc_data.get("episode_paths", []),
             strip_op_ed=bool(arc_data.get("strip_op_ed", True)),
+            keep_first_op=bool(arc_data.get("keep_first_op", True)),
+            keep_last_ed=bool(arc_data.get("keep_last_ed", True)),
             estimated_duration=arc_data.get("estimated_duration", "00h 00m")
         )
 

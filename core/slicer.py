@@ -17,6 +17,8 @@ class EpisodeSlicer:
         ep: EpisodeInfo,
         temp_dir: str,
         strip_op_ed: bool = True,
+        keep_op: bool = False,
+        keep_ed: bool = False,
         on_progress: Optional[Callable[[str], None]] = None
     ) -> str:
         """
@@ -29,7 +31,12 @@ class EpisodeSlicer:
         temp_path.mkdir(parents=True, exist_ok=True)
 
         base_name = Path(ep.file_path).stem
-        output_cut_file = temp_path / f"{base_name}_cut.mkv"
+        mode_suffix = ""
+        if strip_op_ed and not ep.is_movie:
+            mode_suffix = f"_cut{'_kop' if keep_op else ''}{'_ked' if keep_ed else ''}"
+        else:
+            mode_suffix = "_full"
+        output_cut_file = temp_path / f"{base_name}{mode_suffix}.mkv"
 
         # Se já foi fatiado e existe, reutiliza
         if output_cut_file.is_file() and output_cut_file.stat().st_size > 1024:
@@ -67,7 +74,11 @@ class EpisodeSlicer:
             return ep.file_path
 
         # Analisa capítulos a serem mantidos
-        intervals, has_cuts = ChapterAnalyzer.get_kept_intervals(ep.chapters, ep.duration_seconds)
+        intervals, has_cuts = ChapterAnalyzer.get_kept_intervals(
+            ep.chapters, ep.duration_seconds,
+            keep_op=keep_op,
+            keep_ed=keep_ed
+        )
 
         if not has_cuts or len(intervals) <= 1:
             if has_ext_sub:

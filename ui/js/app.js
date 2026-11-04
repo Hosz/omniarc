@@ -422,6 +422,8 @@ function onAddNewArc() {
     output_filename: `Filme_Bloco_${String(arcNum).padStart(2, "0")}.mkv`,
     episode_paths: [],
     strip_op_ed: true,
+    keep_first_op: true,
+    keep_last_ed: true,
     estimated_duration: "00h 00m"
   };
   state.arcs.push(newArc);
@@ -487,12 +489,25 @@ function renderArcs() {
           </p>
         </div>
 
-        <!-- Toggle Remover OP/ED -->
-        <div class="flex items-center gap-2 bg-theme-low px-3 py-1.5 rounded-xl border border-theme shrink-0">
-          <label class="text-xs text-theme-sub font-medium cursor-pointer" for="toggle-op-${index}">
-            Remover Aberturas / Encerramentos
-          </label>
-          <input type="checkbox" id="toggle-op-${index}" class="toggle-op-ed accent-[var(--color-accent)] w-4 h-4 rounded cursor-pointer" ${arc.strip_op_ed ? "checked" : ""}>
+        <!-- Opções de Corte OP/ED -->
+        <div class="flex flex-col gap-1.5 bg-theme-low px-3 py-2 rounded-xl border border-theme shrink-0">
+          <div class="flex items-center justify-between gap-3">
+            <label class="text-xs text-theme-main font-medium cursor-pointer" for="toggle-op-${index}">
+              Remover Aberturas / Encerramentos
+            </label>
+            <input type="checkbox" id="toggle-op-${index}" class="toggle-op-ed accent-[var(--color-accent)] w-4 h-4 rounded cursor-pointer" ${arc.strip_op_ed ? "checked" : ""}>
+          </div>
+          <!-- Sub-opções: Preservar Intro do Filme e Créditos Finais -->
+          <div class="options-op-ed-sub flex items-center gap-3 pt-1.5 border-t border-theme/40 text-[11px] ${arc.strip_op_ed ? '' : 'opacity-40 pointer-events-none'}">
+            <label class="flex items-center gap-1.5 cursor-pointer text-theme-sub hover:text-theme-main" title="Mantém a abertura do primeiro episódio como introdução do filme">
+              <input type="checkbox" class="toggle-keep-first-op accent-[var(--color-accent)] w-3.5 h-3.5 rounded cursor-pointer" ${arc.keep_first_op !== false ? "checked" : ""}>
+              <span>🎬 1ª Abertura (Intro)</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer text-theme-sub hover:text-theme-main" title="Mantém o encerramento do último episódio como créditos finais do filme">
+              <input type="checkbox" class="toggle-keep-last-ed accent-[var(--color-accent)] w-3.5 h-3.5 rounded cursor-pointer" ${arc.keep_last_ed !== false ? "checked" : ""}>
+              <span>📜 Último Encerramento (Créditos)</span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -529,9 +544,32 @@ function renderArcs() {
       arc.title = e.target.value;
     });
 
-    card.querySelector(".toggle-op-ed").addEventListener("change", (e) => {
+    const toggleOp = card.querySelector(".toggle-op-ed");
+    const subOptions = card.querySelector(".options-op-ed-sub");
+    toggleOp.addEventListener("change", (e) => {
       arc.strip_op_ed = e.target.checked;
+      if (subOptions) {
+        if (arc.strip_op_ed) {
+          subOptions.classList.remove("opacity-40", "pointer-events-none");
+        } else {
+          subOptions.classList.add("opacity-40", "pointer-events-none");
+        }
+      }
     });
+
+    const toggleKop = card.querySelector(".toggle-keep-first-op");
+    if (toggleKop) {
+      toggleKop.addEventListener("change", (e) => {
+        arc.keep_first_op = e.target.checked;
+      });
+    }
+
+    const toggleKed = card.querySelector(".toggle-keep-last-ed");
+    if (toggleKed) {
+      toggleKed.addEventListener("change", (e) => {
+        arc.keep_last_ed = e.target.checked;
+      });
+    }
 
     card.querySelectorAll(".btn-remove-ep").forEach(btn => {
       btn.addEventListener("click", () => {
@@ -614,17 +652,42 @@ function openModalSubtitle(ep) {
   document.getElementById("sub-modal-ep-code").textContent = ep.display_code;
   document.getElementById("sub-modal-ep-title").textContent = ep.title;
 
-  const pathBox = document.getElementById("sub-modal-file-path");
-  if (ep.external_sub_path) {
-    pathBox.textContent = ep.external_sub_path;
-    pathBox.classList.remove("text-theme-muted");
-    pathBox.classList.add("text-emerald-400");
-  } else {
-    pathBox.textContent = "Nenhuma legenda vinculada";
-    pathBox.classList.add("text-theme-muted");
-    pathBox.classList.remove("text-emerald-400");
+  // 1. Preenche lista de legendas embutidas no arquivo de vídeo
+  const internalList = document.getElementById("sub-modal-internal-list");
+  const internalCount = document.getElementById("sub-modal-internal-count");
+  const subStreams = (ep.streams || []).filter(s => s.codec_type === "subtitle");
+  
+  if (internalCount) {
+    internalCount.textContent = `${subStreams.length} faixa${subStreams.length !== 1 ? 's' : ''}`;
   }
 
+  if (internalList) {
+    if (subStreams.length === 0) {
+      internalList.innerHTML = `<p class="text-[11px] text-theme-muted italic py-1">Nenhuma legenda interna encontrada no contêiner deste vídeo.</p>`;
+    } else {
+      internalList.innerHTML = subStreams.map(s => {
+        const lang = (s.language || "und").toUpperCase();
+        const title = s.title ? s.title : "Sem título";
+        const codec = (s.codec_name || "sub").toUpperCase();
+        return `
+          <div class="flex items-center justify-between bg-theme-base/60 border border-theme/60 rounded-lg px-2.5 py-1.5 text-[11px]">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-theme-low text-theme-main font-semibold border border-theme/80 shrink-0">
+                ${lang}
+              </span>
+              <span class="text-theme-main truncate font-medium" title="${title}">${title}</span>
+            </div>
+            <span class="text-[10px] font-mono text-theme-muted uppercase ml-2 shrink-0">${codec}</span>
+          </div>
+        `;
+      }).join("");
+    }
+  }
+
+  // 2. Preenche status da legenda externa
+  updateModalExternalSubUI();
+
+  // 3. Preenche delay de sincronia
   const delay = ep.external_sub_delay_ms || 0;
   document.getElementById("sub-modal-delay-input").value = delay;
   document.getElementById("sub-modal-delay-display").textContent = `${delay > 0 ? "+" : ""}${delay} ms`;
@@ -632,6 +695,37 @@ function openModalSubtitle(ep) {
   const modal = document.getElementById("modal-subtitle");
   modal.classList.remove("opacity-0", "pointer-events-none");
   modal.querySelector("div").classList.remove("scale-95");
+}
+
+function updateModalExternalSubUI() {
+  const ep = state.activeEpisodeForSub;
+  if (!ep) return;
+
+  const currentPath = state.tempSubPath || ep.external_sub_path;
+  const pathBox = document.getElementById("sub-modal-file-path");
+  const extBadge = document.getElementById("sub-modal-ext-badge");
+  const browseLabel = document.getElementById("btn-sub-browse-label");
+  const removeBtn = document.getElementById("btn-sub-modal-remove");
+
+  if (currentPath) {
+    pathBox.textContent = currentPath;
+    pathBox.className = "flex-1 bg-theme-base border border-emerald-500/40 rounded-xl px-3 py-2 text-[11px] text-emerald-400 font-mono truncate";
+    if (extBadge) {
+      extBadge.textContent = "Vinculada (PT-BR)";
+      extBadge.className = "text-[10px] px-2 py-0.5 rounded font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+    }
+    if (browseLabel) browseLabel.textContent = "Trocar Arquivo...";
+    if (removeBtn) removeBtn.style.display = "block";
+  } else {
+    pathBox.textContent = "Nenhuma legenda externa vinculada";
+    pathBox.className = "flex-1 bg-theme-base border border-theme rounded-xl px-3 py-2 text-[11px] text-theme-muted font-mono truncate";
+    if (extBadge) {
+      extBadge.textContent = "Nenhuma";
+      extBadge.className = "text-[10px] px-2 py-0.5 rounded font-normal bg-theme-base text-theme-muted border border-theme";
+    }
+    if (browseLabel) browseLabel.textContent = "Adicionar Arquivo (.srt, .ass)...";
+    if (removeBtn) removeBtn.style.display = "none";
+  }
 }
 
 function closeModalSubtitle() {
@@ -648,11 +742,7 @@ async function onBrowseSubtitleFile() {
   const res = await api.select_external_subtitle(state.activeEpisodeForSub.file_path);
   if (res && res.success && res.sub_path) {
     state.tempSubPath = res.sub_path;
-    state.activeEpisodeForSub.external_sub_path = res.sub_path;
-    const pathBox = document.getElementById("sub-modal-file-path");
-    pathBox.textContent = res.sub_path;
-    pathBox.classList.remove("text-theme-muted");
-    pathBox.classList.add("text-emerald-400");
+    updateModalExternalSubUI();
   }
 }
 
@@ -677,6 +767,7 @@ async function onRemoveSubtitle() {
   await api.remove_external_subtitle(state.activeEpisodeForSub.file_path);
   state.activeEpisodeForSub.external_sub_path = null;
   state.activeEpisodeForSub.external_sub_delay_ms = 0;
+  state.tempSubPath = null;
 
   closeModalSubtitle();
   renderEpisodes();
