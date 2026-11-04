@@ -40,6 +40,10 @@ class EpisodeInfo:
     chapters: List[ChapterInfo] = field(default_factory=list)
     streams: List[StreamInfo] = field(default_factory=list)
     audio_summary: str = "Áudio Padrão"
+    subtitles_count: int = 0
+    subtitles_summary: str = "Sem Legendas"
+    external_sub_path: Optional[str] = None
+    external_sub_delay_ms: int = 0
     is_movie: bool = False
 
     def to_dict(self) -> Dict[str, Any]:

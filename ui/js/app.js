@@ -64,6 +64,8 @@ const state = {
   filteredEpisodes: [],
   arcs: [],
   activeArcIdForRange: null,
+  activeEpisodeForSub: null,
+  tempSubPath: null,
   isProcessing: false,
   isDarkMode: true,
   currentAccent: "mint"
@@ -173,6 +175,22 @@ function setupEventListeners() {
   // Modal de Intervalo
   document.getElementById("btn-range-cancel").addEventListener("click", closeModalRange);
   document.getElementById("btn-range-confirm").addEventListener("click", onConfirmRange);
+
+  // Modal de Legendas
+  document.getElementById("btn-sub-modal-close").addEventListener("click", closeModalSubtitle);
+  document.getElementById("btn-sub-modal-browse").addEventListener("click", onBrowseSubtitleFile);
+  document.getElementById("btn-sub-modal-save").addEventListener("click", onSaveSubtitleSettings);
+  document.getElementById("btn-sub-modal-remove").addEventListener("click", onRemoveSubtitle);
+  document.getElementById("sub-modal-delay-input").addEventListener("input", (e) => {
+    document.getElementById("sub-modal-delay-display").textContent = `${e.target.value || 0} ms`;
+  });
+  document.querySelectorAll(".btn-quick-delay").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const delay = btn.getAttribute("data-delay");
+      document.getElementById("sub-modal-delay-input").value = delay;
+      document.getElementById("sub-modal-delay-display").textContent = `${delay} ms`;
+    });
+  });
 }
 
 // =============================================================================
@@ -325,6 +343,23 @@ function renderEpisodes() {
       ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-accent-wash text-accent font-medium border border-accent-subtle">Capítulos OP/ED</span>`
       : `<span class="text-[10px] px-2 py-0.5 rounded-full bg-theme-low text-theme-muted font-normal border border-theme">Completo</span>`;
 
+    // Selo de Legendas
+    let badgeSub = "";
+    if (ep.external_sub_path) {
+      const delayTxt = ep.external_sub_delay_ms !== 0 ? ` (${ep.external_sub_delay_ms > 0 ? "+" : ""}${ep.external_sub_delay_ms}ms)` : "";
+      badgeSub = `<button class="btn-open-sub-modal text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 font-medium border border-emerald-500/30 flex items-center gap-1 transition-colors" title="Legenda externa: ${ep.external_sub_path}">
+        <span>💬 PT-BR${delayTxt}</span>
+      </button>`;
+    } else if (ep.subtitles_count > 0) {
+      badgeSub = `<button class="btn-open-sub-modal text-[10px] px-2 py-0.5 rounded-full bg-theme-low hover:bg-theme-hover text-theme-muted hover:text-theme-main font-normal border border-theme transition-colors" title="${ep.subtitles_summary}. Clique para vincular legenda PT-BR externa.">
+        💬 ${ep.subtitles_count} Leg (+PT)
+      </button>`;
+    } else {
+      badgeSub = `<button class="btn-open-sub-modal text-[10px] px-2 py-0.5 rounded-full bg-theme-low hover:bg-theme-hover text-theme-muted hover:text-theme-main font-normal border border-theme transition-colors" title="Nenhuma legenda embutida. Clique para adicionar legenda PT-BR externa.">
+        + Legenda PT
+      </button>`;
+    }
+
     card.innerHTML = `
       <div class="flex items-center gap-2.5 overflow-hidden mr-2">
         <span class="text-xs font-semibold px-2 py-1 rounded-lg bg-theme-low text-theme-main border border-theme shrink-0 font-mono">
@@ -337,6 +372,7 @@ function renderEpisodes() {
           <div class="flex items-center gap-2 mt-0.5">
             <span class="text-[11px] text-theme-muted">${ep.duration_formatted}</span>
             ${badgeOpEd}
+            ${badgeSub}
           </div>
         </div>
       </div>
@@ -348,6 +384,14 @@ function renderEpisodes() {
     card.querySelector(".btn-add-to-arc").addEventListener("click", () => {
       addEpisodeToCurrentArc(ep.file_path);
     });
+
+    const subBtn = card.querySelector(".btn-open-sub-modal");
+    if (subBtn) {
+      subBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openModalSubtitle(ep);
+      });
+    }
 
     container.appendChild(card);
   });
@@ -557,6 +601,85 @@ function onConfirmRange() {
     }
   }
   closeModalRange();
+}
+
+// =============================================================================
+// Modal de Legendas Externas e Sincronia
+// =============================================================================
+
+function openModalSubtitle(ep) {
+  state.activeEpisodeForSub = ep;
+  state.tempSubPath = ep.external_sub_path || null;
+
+  document.getElementById("sub-modal-ep-code").textContent = ep.display_code;
+  document.getElementById("sub-modal-ep-title").textContent = ep.title;
+
+  const pathBox = document.getElementById("sub-modal-file-path");
+  if (ep.external_sub_path) {
+    pathBox.textContent = ep.external_sub_path;
+    pathBox.classList.remove("text-theme-muted");
+    pathBox.classList.add("text-emerald-400");
+  } else {
+    pathBox.textContent = "Nenhuma legenda vinculada";
+    pathBox.classList.add("text-theme-muted");
+    pathBox.classList.remove("text-emerald-400");
+  }
+
+  const delay = ep.external_sub_delay_ms || 0;
+  document.getElementById("sub-modal-delay-input").value = delay;
+  document.getElementById("sub-modal-delay-display").textContent = `${delay > 0 ? "+" : ""}${delay} ms`;
+
+  const modal = document.getElementById("modal-subtitle");
+  modal.classList.remove("opacity-0", "pointer-events-none");
+  modal.querySelector("div").classList.remove("scale-95");
+}
+
+function closeModalSubtitle() {
+  const modal = document.getElementById("modal-subtitle");
+  modal.classList.add("opacity-0", "pointer-events-none");
+  modal.querySelector("div").classList.add("scale-95");
+  state.activeEpisodeForSub = null;
+  state.tempSubPath = null;
+}
+
+async function onBrowseSubtitleFile() {
+  if (!state.activeEpisodeForSub) return;
+  const api = await getApi();
+  const res = await api.select_external_subtitle(state.activeEpisodeForSub.file_path);
+  if (res && res.success && res.sub_path) {
+    state.tempSubPath = res.sub_path;
+    state.activeEpisodeForSub.external_sub_path = res.sub_path;
+    const pathBox = document.getElementById("sub-modal-file-path");
+    pathBox.textContent = res.sub_path;
+    pathBox.classList.remove("text-theme-muted");
+    pathBox.classList.add("text-emerald-400");
+  }
+}
+
+async function onSaveSubtitleSettings() {
+  if (!state.activeEpisodeForSub) return;
+  const delay = parseInt(document.getElementById("sub-modal-delay-input").value) || 0;
+  state.activeEpisodeForSub.external_sub_delay_ms = delay;
+  if (state.tempSubPath) {
+    state.activeEpisodeForSub.external_sub_path = state.tempSubPath;
+  }
+
+  const api = await getApi();
+  await api.set_subtitle_delay(state.activeEpisodeForSub.file_path, delay);
+
+  closeModalSubtitle();
+  renderEpisodes();
+}
+
+async function onRemoveSubtitle() {
+  if (!state.activeEpisodeForSub) return;
+  const api = await getApi();
+  await api.remove_external_subtitle(state.activeEpisodeForSub.file_path);
+  state.activeEpisodeForSub.external_sub_path = null;
+  state.activeEpisodeForSub.external_sub_delay_ms = 0;
+
+  closeModalSubtitle();
+  renderEpisodes();
 }
 
 // =============================================================================

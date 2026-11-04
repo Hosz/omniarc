@@ -106,6 +106,45 @@ class OmniArcBridge:
             "total": len(episodes)
         }
 
+    def select_external_subtitle(self, episode_path: str) -> Dict[str, Any]:
+        """Abre seletor para vincular legenda externa a um episódio específico."""
+        sub_file = PlatformAdapter.open_file_dialog(
+            self._window,
+            title="Selecionar Legenda Externa (.srt, .ass, .vtt)",
+            file_types=("Arquivos de Legenda (*.srt;*.ass;*.vtt)", "Todos os arquivos (*.*)")
+        )
+        if not sub_file:
+            return {"cancelled": True}
+
+        ep = self._episodes_cache.get(episode_path)
+        if ep:
+            ep.external_sub_path = sub_file
+            return {
+                "success": True,
+                "episode_path": episode_path,
+                "sub_path": sub_file,
+                "sub_name": Path(sub_file).name,
+                "delay_ms": ep.external_sub_delay_ms
+            }
+        return {"success": False, "error": "Episódio não encontrado no cache"}
+
+    def set_subtitle_delay(self, episode_path: str, delay_ms: int) -> Dict[str, Any]:
+        """Define o deslocamento de tempo (em milissegundos) da legenda externa."""
+        ep = self._episodes_cache.get(episode_path)
+        if ep:
+            ep.external_sub_delay_ms = int(delay_ms)
+            return {"success": True, "episode_path": episode_path, "delay_ms": ep.external_sub_delay_ms}
+        return {"success": False, "error": "Episódio não encontrado"}
+
+    def remove_external_subtitle(self, episode_path: str) -> Dict[str, Any]:
+        """Remove a vinculação de legenda externa do episódio."""
+        ep = self._episodes_cache.get(episode_path)
+        if ep:
+            ep.external_sub_path = None
+            ep.external_sub_delay_ms = 0
+            return {"success": True, "episode_path": episode_path}
+        return {"success": False, "error": "Episódio não encontrado"}
+
     def save_project(self, project_data: Dict[str, Any], filepath: Optional[str] = None) -> Dict[str, Any]:
         """Salva a configuração do projeto atual em arquivo JSON."""
         try:

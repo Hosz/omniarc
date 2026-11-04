@@ -38,7 +38,28 @@ class EpisodeSlicer:
             return str(output_cut_file)
 
         # Se não deve cortar OP/ED ou se for filme
+        has_ext_sub = bool(ep.external_sub_path and Path(ep.external_sub_path).is_file())
         if not strip_op_ed or ep.is_movie:
+            if has_ext_sub:
+                if on_progress:
+                    on_progress(f"Injetando legenda externa em {ep.display_code} (integral)...")
+                ffmpeg = PlatformAdapter.get_ffmpeg()
+                cmd_mux = [ffmpeg, "-nostdin", "-v", "error", "-i", ep.file_path]
+                if ep.external_sub_delay_ms != 0:
+                    cmd_mux.extend(["-itsoffset", f"{ep.external_sub_delay_ms / 1000.0:.3f}"])
+                cmd_mux.extend([
+                    "-i", ep.external_sub_path,
+                    "-c", "copy",
+                    "-map", "0",
+                    "-map", "1:s",
+                    f"-metadata:s:s:{ep.subtitles_count}", "language=por",
+                    f"-metadata:s:s:{ep.subtitles_count}", "title=Português (Brasil)",
+                    "-y",
+                    str(output_cut_file)
+                ])
+                PlatformAdapter.run_command(cmd_mux, check=True)
+                return str(output_cut_file)
+
             if PlatformAdapter.IS_LINUX:
                 symlink_target = temp_path / f"{base_name}_linked.mkv"
                 PlatformAdapter.create_symlink_or_copy(ep.file_path, str(symlink_target))
@@ -49,6 +70,26 @@ class EpisodeSlicer:
         intervals, has_cuts = ChapterAnalyzer.get_kept_intervals(ep.chapters, ep.duration_seconds)
 
         if not has_cuts or len(intervals) <= 1:
+            if has_ext_sub:
+                if on_progress:
+                    on_progress(f"Injetando legenda externa em {ep.display_code} (sem corte OP/ED)...")
+                ffmpeg = PlatformAdapter.get_ffmpeg()
+                cmd_mux = [ffmpeg, "-nostdin", "-v", "error", "-i", ep.file_path]
+                if ep.external_sub_delay_ms != 0:
+                    cmd_mux.extend(["-itsoffset", f"{ep.external_sub_delay_ms / 1000.0:.3f}"])
+                cmd_mux.extend([
+                    "-i", ep.external_sub_path,
+                    "-c", "copy",
+                    "-map", "0",
+                    "-map", "1:s",
+                    f"-metadata:s:s:{ep.subtitles_count}", "language=por",
+                    f"-metadata:s:s:{ep.subtitles_count}", "title=Português (Brasil)",
+                    "-y",
+                    str(output_cut_file)
+                ])
+                PlatformAdapter.run_command(cmd_mux, check=True)
+                return str(output_cut_file)
+
             if on_progress:
                 on_progress(f"Sem corte de OP/ED para {ep.display_code} (mantido integral).")
             if PlatformAdapter.IS_LINUX:
@@ -58,7 +99,8 @@ class EpisodeSlicer:
             return ep.file_path
 
         if on_progress:
-            on_progress(f"Fatiando {ep.display_code}: mantendo {len(intervals)} segmentos (removendo OP/ED)...")
+            sub_info = " [com legenda externa PT-BR]" if has_ext_sub else ""
+            on_progress(f"Fatiando {ep.display_code}{sub_info}: mantendo {len(intervals)} segmentos (removendo OP/ED)...")
 
         ffmpeg = PlatformAdapter.get_ffmpeg()
         part_files: List[Path] = []
@@ -78,12 +120,33 @@ class EpisodeSlicer:
                         "-ss", str(start_t),
                         "-to", str(end_t),
                         "-i", ep.file_path,
-                        "-c", "copy",
-                        "-map", "0",
-                        "-avoid_negative_ts", "make_zero",
-                        "-y",
-                        str(part_out)
                     ]
+
+                    if has_ext_sub:
+                        if ep.external_sub_delay_ms != 0:
+                            cmd_slice.extend(["-itsoffset", f"{ep.external_sub_delay_ms / 1000.0:.3f}"])
+                        cmd_slice.extend([
+                            "-ss", str(start_t),
+                            "-to", str(end_t),
+                            "-i", ep.external_sub_path,
+                            "-c", "copy",
+                            "-map", "0",
+                            "-map", "1:s",
+                            f"-metadata:s:s:{ep.subtitles_count}", "language=por",
+                            f"-metadata:s:s:{ep.subtitles_count}", "title=Português (Brasil)",
+                            "-avoid_negative_ts", "make_zero",
+                            "-y",
+                            str(part_out)
+                        ])
+                    else:
+                        cmd_slice.extend([
+                            "-c", "copy",
+                            "-map", "0",
+                            "-avoid_negative_ts", "make_zero",
+                            "-y",
+                            str(part_out)
+                        ])
+
                     PlatformAdapter.run_command(cmd_slice, check=True)
                     f_list.write(f"{PlatformAdapter.format_ffmpeg_concat_path(str(part_out))}\n")
 

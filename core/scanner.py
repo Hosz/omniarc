@@ -95,6 +95,7 @@ class EpisodeScanner:
             streams: List[StreamInfo] = []
 
             audio_tracks = []
+            sub_tracks = []
             for s in raw_streams:
                 c_type = s.get("codec_type", "")
                 tags = s.get("tags", {})
@@ -113,6 +114,8 @@ class EpisodeScanner:
                 streams.append(st)
                 if c_type == "audio":
                     audio_tracks.append(lang.upper())
+                elif c_type == "subtitle":
+                    sub_tracks.append(lang.upper() if lang != "und" else (title or "SUB"))
 
             # Resumo de áudio
             if len(audio_tracks) >= 2:
@@ -123,9 +126,56 @@ class EpisodeScanner:
             else:
                 audio_summary = "Sem Faixa de Áudio"
 
-            return duration, streams, audio_summary
+            # Resumo de legendas embutidas
+            sub_count = len(sub_tracks)
+            if sub_count >= 2:
+                langs_sub = "/".join(set(sub_tracks))
+                sub_summary = f"{sub_count} Legendas ({langs_sub})"
+            elif sub_count == 1:
+                sub_summary = f"1 Legenda ({sub_tracks[0]})"
+            else:
+                sub_summary = "Sem Legendas"
+
+            return duration, streams, audio_summary, sub_count, sub_summary
         except Exception:
-            return 0.0, [], "Erro de leitura"
+            return 0.0, [], "Erro de leitura", 0, "Sem Legendas"
+
+    @classmethod
+    def find_external_subtitle(cls, video_path: Path, season: int, ep_num: int) -> Optional[str]:
+        """Procura por arquivo de legenda externa (.srt, .ass, .vtt) associado ao episódio."""
+        stem = video_path.stem
+        parent = video_path.parent
+        candidates = [
+            f"{stem}.srt", f"{stem}.ass", f"{stem}.vtt",
+            f"{stem}.pt-br.srt", f"{stem}.pt-br.ass",
+            f"{stem}.pt.srt", f"{stem}.pt.ass",
+            f"{stem}_pt-br.ass", f"{stem}_pt-br.srt",
+            f"{stem}_pt.ass", f"{stem}_pt.srt",
+            f"{stem}_bra.ass", f"{stem}_bra.srt",
+        ]
+        # 1. Procura na mesma pasta do vídeo
+        for c in candidates:
+            p = parent / c
+            if p.is_file():
+                return str(p.resolve())
+
+        # 2. Procura em subpastas de legendas (subs, subtitles, legendas)
+        for sub_dir_name in ["subs", "subtitles", "legendas"]:
+            sub_dir = parent / sub_dir_name
+            if sub_dir.is_dir():
+                for c in candidates:
+                    p = sub_dir / c
+                    if p.is_file():
+                        return str(p.resolve())
+                # Procura por qualquer .srt/.ass que combine com o número do episódio
+                for f in sub_dir.glob("*.srt"):
+                    if f"s{season:02d}e{ep_num:02d}".lower() in f.name.lower() or f"{ep_num:02d}" in f.name:
+                        return str(f.resolve())
+                for f in sub_dir.glob("*.ass"):
+                    if f"s{season:02d}e{ep_num:02d}".lower() in f.name.lower() or f"{ep_num:02d}" in f.name:
+                        return str(f.resolve())
+
+        return None
 
     @classmethod
     def scan_directory(cls, dir_path: str) -> List[EpisodeInfo]:
@@ -152,7 +202,13 @@ class EpisodeScanner:
             season, ep_num, code, is_movie = cls.parse_filename(file_name)
 
             # Extração de streams e duração
-            dur, streams, audio_summary = cls.probe_streams(str(file_p))
+            dur, streams, audio_summary, sub_count, sub_summary = cls.probe_streams(str(file_p))
+
+            # Detecção de legenda externa (.srt, .ass, etc.)
+            ext_sub = cls.find_external_subtitle(file_p, season, ep_num)
+            if ext_sub:
+                sub_count += 1
+                sub_summary = f"{sub_summary} + Externa (PT-BR)" if sub_count > 1 else "1 Legenda Externa (PT-BR)"
 
             # Extração de capítulos
             chapters = ChapterAnalyzer.probe_chapters(str(file_p))
@@ -181,6 +237,10 @@ class EpisodeScanner:
                 chapters=chapters,
                 streams=streams,
                 audio_summary=audio_summary,
+                subtitles_count=sub_count,
+                subtitles_summary=sub_summary,
+                external_sub_path=ext_sub,
+                external_sub_delay_ms=0,
                 is_movie=is_movie
             ))
 

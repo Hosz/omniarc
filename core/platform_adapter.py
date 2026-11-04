@@ -195,3 +195,57 @@ class PlatformAdapter:
             pass
 
         return None
+
+    @classmethod
+    def open_file_dialog(
+        cls,
+        window=None,
+        title: str = "Selecionar Arquivo",
+        file_types: tuple = ("Arquivos de Legenda (*.srt;*.ass;*.vtt)", "*.srt;*.ass;*.vtt")
+    ) -> Optional[str]:
+        """Abre o seletor nativo para escolha de um arquivo individual (ex: legenda)."""
+        if window is not None:
+            try:
+                import webview
+                result = window.create_file_dialog(
+                    webview.OPEN_DIALOG,
+                    allow_multiple=False,
+                    file_types=file_types
+                )
+                if result is not None and len(result) > 0:
+                    return str(result[0])
+                return None
+            except Exception:
+                pass
+
+        if cls.IS_LINUX and shutil.which("kdialog"):
+            try:
+                res = subprocess.run(
+                    ["kdialog", "--getopenfilename", "", "*.srt *.ass *.vtt|Legendas (*.srt *.ass *.vtt)"],
+                    capture_output=True,
+                    text=True,
+                    check=False
+                )
+                if res.returncode == 0:
+                    f = res.stdout.strip()
+                    return f if f and os.path.isfile(f) else None
+                return None
+            except Exception:
+                pass
+
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)
+            f = filedialog.askopenfilename(
+                title=title,
+                filetypes=[("Legendas", "*.srt *.ass *.vtt"), ("Todos os arquivos", "*.*")]
+            )
+            root.destroy()
+            return f if f and os.path.isfile(f) else None
+        except Exception:
+            pass
+
+        return None

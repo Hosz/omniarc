@@ -257,6 +257,67 @@
     </div>
   </div>
 
+  <!-- MODAL: Configurar Legenda Externa & Sincronia -->
+  <div id="modal-subtitle" class="fixed inset-0 bg-theme-base/70 backdrop-blur-sm z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+    <div class="bg-theme-surface border border-theme rounded-2xl p-6 w-full max-w-md shadow-2xl scale-95 transition-transform duration-200">
+      <div class="flex items-center justify-between mb-1">
+        <h3 class="text-sm font-semibold text-theme-main flex items-center gap-2">
+          <span>💬</span> Configurar Legenda Externa
+        </h3>
+        <span id="sub-modal-ep-code" class="text-xs font-mono px-2 py-0.5 rounded bg-theme-low text-theme-muted border border-theme">S01E01</span>
+      </div>
+      <p id="sub-modal-ep-title" class="text-xs text-theme-sub truncate mb-4">Nome do Episódio</p>
+      
+      <!-- Arquivo de Legenda -->
+      <div class="mb-4">
+        <label class="block text-[10px] uppercase font-semibold text-theme-muted mb-1.5">Arquivo de Legenda (.srt, .ass, .vtt)</label>
+        <div class="flex items-center gap-2">
+          <div id="sub-modal-file-path" class="flex-1 bg-theme-low border border-theme rounded-xl px-3 py-2 text-[11px] text-theme-main font-mono truncate text-theme-muted">
+            Nenhuma legenda vinculada
+          </div>
+          <button id="btn-sub-modal-browse" class="px-3 py-2 rounded-xl bg-theme-low border border-theme hover:bg-theme-hover text-xs font-medium text-theme-main transition-colors shrink-0">
+            Selecionar...
+          </button>
+        </div>
+      </div>
+
+      <!-- Ajuste de Sincronia (Delay) -->
+      <div class="mb-5 bg-theme-low/50 border border-theme rounded-xl p-3">
+        <div class="flex items-center justify-between mb-1">
+          <label class="text-[11px] font-medium text-theme-main">Ajuste de Sincronia (Delay)</label>
+          <span id="sub-modal-delay-display" class="text-xs font-mono font-semibold text-accent">0 ms</span>
+        </div>
+        <p class="text-[10px] text-theme-sub mb-2.5">
+          Útil para legendas WEB em vídeos Blu-ray. Use valores positivos para atrasar ou negativos para adiantar.
+        </p>
+        <div class="flex items-center gap-2">
+          <input id="sub-modal-delay-input" type="number" step="50" value="0" placeholder="0" class="w-28 bg-theme-base border border-theme rounded-lg px-2.5 py-1 text-xs text-theme-main font-mono focus:outline-none">
+          <span class="text-xs text-theme-muted">ms</span>
+          <div class="flex items-center gap-1 ml-auto">
+            <button type="button" class="btn-quick-delay px-2 py-1 rounded bg-theme-base border border-theme text-[10px] text-theme-muted hover:text-theme-main" data-delay="-1000">-1s</button>
+            <button type="button" class="btn-quick-delay px-2 py-1 rounded bg-theme-base border border-theme text-[10px] text-theme-muted hover:text-theme-main" data-delay="0">0</button>
+            <button type="button" class="btn-quick-delay px-2 py-1 rounded bg-theme-base border border-theme text-[10px] text-theme-muted hover:text-theme-main" data-delay="1000">+1s</button>
+            <button type="button" class="btn-quick-delay px-2 py-1 rounded bg-theme-base border border-theme text-[10px] text-theme-muted hover:text-theme-main" data-delay="1200">+1.2s</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between pt-1 border-t border-theme">
+        <button id="btn-sub-modal-remove" class="text-xs text-rose-400 hover:underline">
+          Remover Legenda
+        </button>
+        <div class="flex items-center gap-2">
+          <button id="btn-sub-modal-close" class="px-4 py-1.5 rounded-xl text-xs text-theme-sub hover:text-theme-main transition-colors">
+            Cancelar
+          </button>
+          <button id="btn-sub-modal-save" class="px-4 py-1.5 rounded-xl bg-accent font-semibold text-xs hover:opacity-95 transition-colors">
+            Salvar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="js/app.js"></script>
 </body>
 </html>
