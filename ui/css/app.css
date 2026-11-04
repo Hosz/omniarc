@@ -93,6 +93,14 @@ input:focus {
   border-color: var(--color-accent-border) !important;
 }
 
+.border-accent {
+  border-color: var(--color-accent) !important;
+}
+
+.ring-accent {
+  box-shadow: 0 0 0 2px var(--color-accent) !important;
+}
+
 /* Cards e Elementos com Variáveis de Superfície */
 .bg-theme-base {
   background-color: var(--color-base) !important;

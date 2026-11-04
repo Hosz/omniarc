@@ -63,6 +63,7 @@ const state = {
   episodes: [],
   filteredEpisodes: [],
   arcs: [],
+  selectedArcId: null,
   activeArcIdForRange: null,
   activeEpisodeForSub: null,
   tempSubPath: null,
@@ -168,6 +169,17 @@ function setupEventListeners() {
 
   // Busca e Filtro
   document.getElementById("input-search").addEventListener("input", onSearchInput);
+
+  // Seleção de Arco Alvo no Painel Esquerdo
+  const selectActiveArc = document.getElementById("select-active-arc");
+  if (selectActiveArc) {
+    selectActiveArc.addEventListener("change", (e) => {
+      const arcId = parseInt(e.target.value);
+      if (arcId) {
+        setSelectedArc(arcId);
+      }
+    });
+  }
 
   // Cancelamento de Progresso
   document.getElementById("btn-cancel-progress").addEventListener("click", onCancelBuild);
@@ -294,9 +306,58 @@ async function onLoadProject() {
     if (res.episodes && res.episodes.length > 0) {
       state.episodes = res.episodes;
       state.filteredEpisodes = [...state.episodes];
-      renderEpisodes();
+    }
+    if (state.arcs.length > 0) {
+      state.selectedArcId = state.arcs[0].arc_id;
     }
     renderArcs();
+    renderEpisodes();
+  }
+}
+
+// =============================================================================
+// Gestão do Arco Alvo (Seleção Ativa)
+// =============================================================================
+
+function getSelectedArc() {
+  if (state.arcs.length === 0) return null;
+  let arc = state.arcs.find(a => a.arc_id === state.selectedArcId);
+  if (!arc) {
+    arc = state.arcs[0];
+    state.selectedArcId = arc.arc_id;
+  }
+  return arc;
+}
+
+function setSelectedArc(arcId) {
+  state.selectedArcId = arcId;
+  updateTargetArcUI();
+  renderArcs();
+  renderEpisodes();
+}
+
+function updateTargetArcUI() {
+  const select = document.getElementById("select-active-arc");
+  const codeBadge = document.getElementById("target-arc-code");
+  if (!select) return;
+
+  if (state.arcs.length === 0) {
+    select.innerHTML = `<option value="">Nenhum bloco criado</option>`;
+    select.disabled = true;
+    if (codeBadge) codeBadge.textContent = "Nenhum";
+    return;
+  }
+
+  select.disabled = false;
+  const current = getSelectedArc();
+  select.innerHTML = state.arcs.map(a => `
+    <option value="${a.arc_id}" ${current && current.arc_id === a.arc_id ? "selected" : ""}>
+      ${a.code}: ${a.title} (${a.episode_paths.length} eps)
+    </option>
+  `).join("");
+
+  if (codeBadge && current) {
+    codeBadge.textContent = current.code;
   }
 }
 
@@ -323,6 +384,8 @@ function renderEpisodes() {
   const countBadge = document.getElementById("badge-episode-count");
   countBadge.textContent = state.episodes.length;
 
+  updateTargetArcUI();
+
   if (state.episodes.length === 0) {
     container.innerHTML = `
       <div class="h-full flex flex-col items-center justify-center text-center p-6 text-theme-muted">
@@ -334,10 +397,22 @@ function renderEpisodes() {
   }
 
   container.innerHTML = "";
+  const currentArc = getSelectedArc();
 
   state.filteredEpisodes.forEach(ep => {
     const card = document.createElement("div");
-    card.className = "episode-card bg-theme-surface border border-theme rounded-xl p-3 flex items-center justify-between group border-theme-hover shadow-sm";
+
+    // Verifica se já está no bloco ativo ou em outro bloco
+    const isInSelectedArc = currentArc && currentArc.episode_paths.includes(ep.file_path);
+    const otherArc = !isInSelectedArc 
+      ? state.arcs.find(a => (!currentArc || a.arc_id !== currentArc.arc_id) && a.episode_paths.includes(ep.file_path)) 
+      : null;
+
+    if (isInSelectedArc) {
+      card.className = "episode-card bg-emerald-500/[0.04] border border-emerald-500/40 rounded-xl p-3 flex items-center justify-between group shadow-sm transition-all";
+    } else {
+      card.className = "episode-card bg-theme-surface border border-theme rounded-xl p-3 flex items-center justify-between group border-theme-hover shadow-sm transition-all";
+    }
 
     const badgeOpEd = ep.has_op_ed 
       ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-accent-wash text-accent font-medium border border-accent-subtle">Capítulos OP/ED</span>`
@@ -360,6 +435,29 @@ function renderEpisodes() {
       </button>`;
     }
 
+    // Selo de outro arco, se aplicável
+    const otherArcBadge = otherArc 
+      ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-theme-low text-theme-muted font-mono" title="Incluído em ${otherArc.title}">no ${otherArc.code}</span>` 
+      : "";
+
+    // Botão de Adição / Remoção Dinâmico
+    let actionBtnHtml = "";
+    if (isInSelectedArc) {
+      actionBtnHtml = `
+        <button class="btn-toggle-arc text-xs px-2.5 py-1 rounded-lg font-medium shrink-0 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-rose-500/20 hover:text-rose-400 hover:border-rose-500/30 transition-all flex items-center gap-1 group/btn" title="Já adicionado a este bloco (${currentArc ? currentArc.code : ''}). Clique para remover.">
+          <span class="group-hover/btn:hidden flex items-center gap-1">✓ Adicionado</span>
+          <span class="hidden group-hover/btn:inline flex items-center gap-1">✕ Remover</span>
+        </button>
+      `;
+    } else {
+      const targetLabel = currentArc ? currentArc.code : "Bloco";
+      actionBtnHtml = `
+        <button class="btn-toggle-arc text-xs text-accent hover:bg-accent-wash border border-transparent hover:border-accent-subtle px-2.5 py-1 rounded-lg transition-colors font-medium shrink-0" title="Adicionar ao ${targetLabel}">
+          + Adicionar
+        </button>
+      `;
+    }
+
     card.innerHTML = `
       <div class="flex items-center gap-2.5 overflow-hidden mr-2">
         <span class="text-xs font-semibold px-2 py-1 rounded-lg bg-theme-low text-theme-main border border-theme shrink-0 font-mono">
@@ -373,16 +471,15 @@ function renderEpisodes() {
             <span class="text-[11px] text-theme-muted">${ep.duration_formatted}</span>
             ${badgeOpEd}
             ${badgeSub}
+            ${otherArcBadge}
           </div>
         </div>
       </div>
-      <button class="btn-add-to-arc text-xs text-accent hover:bg-accent-wash px-2.5 py-1 rounded-lg transition-colors font-medium shrink-0" title="Adicionar ao Arco Selecionado">
-        + Adicionar
-      </button>
+      ${actionBtnHtml}
     `;
 
-    card.querySelector(".btn-add-to-arc").addEventListener("click", () => {
-      addEpisodeToCurrentArc(ep.file_path);
+    card.querySelector(".btn-toggle-arc").addEventListener("click", () => {
+      toggleEpisodeInCurrentArc(ep.file_path);
     });
 
     const subBtn = card.querySelector(".btn-open-sub-modal");
@@ -397,16 +494,22 @@ function renderEpisodes() {
   });
 }
 
-function addEpisodeToCurrentArc(filePath) {
+function toggleEpisodeInCurrentArc(filePath) {
   if (state.arcs.length === 0) {
     onAddNewArc();
   }
-  const targetArc = state.arcs[state.arcs.length - 1];
-  if (!targetArc.episode_paths.includes(filePath)) {
+  const targetArc = getSelectedArc();
+  if (!targetArc) return;
+
+  const idx = targetArc.episode_paths.indexOf(filePath);
+  if (idx >= 0) {
+    targetArc.episode_paths.splice(idx, 1);
+  } else {
     targetArc.episode_paths.push(filePath);
-    updateArcEstimatedDuration(targetArc);
-    renderArcs();
   }
+  updateArcEstimatedDuration(targetArc);
+  renderArcs();
+  renderEpisodes();
 }
 
 // =============================================================================
@@ -427,7 +530,9 @@ function onAddNewArc() {
     estimated_duration: "00h 00m"
   };
   state.arcs.push(newArc);
+  state.selectedArcId = newArc.arc_id;
   renderArcs();
+  renderEpisodes();
 }
 
 function updateArcEstimatedDuration(arc) {
@@ -446,6 +551,8 @@ function renderArcs() {
   const summary = document.getElementById("txt-arc-summary");
   summary.textContent = `${state.arcs.length} arco(s) configurado(s)`;
 
+  updateTargetArcUI();
+
   if (state.arcs.length === 0) {
     container.innerHTML = `
       <div id="arcs-empty" class="h-full flex flex-col items-center justify-center text-center p-8 text-theme-muted">
@@ -457,10 +564,15 @@ function renderArcs() {
   }
 
   container.innerHTML = "";
+  const currentSelected = getSelectedArc();
 
   state.arcs.forEach((arc, index) => {
+    const isSelected = currentSelected && arc.arc_id === currentSelected.arc_id;
     const card = document.createElement("div");
-    card.className = "bg-theme-surface border border-theme rounded-2xl p-5 flex flex-col gap-4 shadow-sm border-theme-hover transition-all";
+
+    card.className = isSelected
+      ? "arc-card bg-theme-surface border border-accent ring-2 ring-accent/60 rounded-2xl p-5 flex flex-col gap-4 shadow-lg shadow-accent/5 transition-all"
+      : "arc-card bg-theme-surface border border-theme rounded-2xl p-5 flex flex-col gap-4 shadow-sm border-theme-hover transition-all cursor-pointer";
 
     // Pílulas dos episódios incluídos
     const epPillsHtml = arc.episode_paths.map(p => {
@@ -469,20 +581,30 @@ function renderArcs() {
       return `
         <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-theme-low border border-theme text-xs text-theme-main font-mono">
           ${code}
-          <button data-path="${p}" class="btn-remove-ep text-theme-muted hover:text-rose-400 transition-colors">×</button>
+          <button data-path="${p}" class="btn-remove-ep text-theme-muted hover:text-rose-400 transition-colors" title="Remover este episódio">×</button>
         </span>
       `;
     }).join("");
+
+    // Indicador e botão de seleção de arco alvo
+    const activeStatusHtml = isSelected
+      ? `<span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-accent text-[var(--color-accent-text)] flex items-center gap-1 shadow-sm shrink-0">
+          <span>🎯</span> Bloco Ativo
+        </span>`
+      : `<button type="button" class="btn-set-target text-[10px] font-semibold px-2 py-0.5 rounded-full bg-theme-low hover:bg-accent-wash text-theme-muted hover:text-accent border border-theme transition-all shrink-0" title="Clique para selecionar este bloco como destino das adições">
+          Definir como Ativo
+        </button>`;
 
     card.innerHTML = `
       <!-- Cabeçalho do Card -->
       <div class="flex items-start justify-between gap-4">
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2">
-            <span class="text-[11px] font-mono px-2 py-0.5 rounded-lg bg-accent-wash text-accent font-semibold">
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded-lg bg-accent-wash text-accent font-semibold shrink-0">
               ${arc.code}
             </span>
             <input type="text" value="${arc.title}" class="input-arc-title bg-transparent font-semibold text-sm text-theme-main focus:outline-none focus:border-b focus:border-accent transition-colors truncate w-full max-w-sm">
+            ${activeStatusHtml}
           </div>
           <p class="text-xs text-theme-muted mt-1">
             ${arc.episode_paths.length} episódio(s) • Duração estimada: ~${arc.estimated_duration}
@@ -513,20 +635,20 @@ function renderArcs() {
 
       <!-- Área de Episódios Incluídos -->
       <div class="bg-theme-low/50 rounded-xl p-3 border border-theme min-h-[50px] flex items-center flex-wrap gap-2">
-        ${epPillsHtml || '<span class="text-xs text-theme-muted">Nenhum episódio neste bloco ainda. Clique em "+ Intervalo" ou "+ Adicionar" na lista à esquerda.</span>'}
+        ${epPillsHtml || '<span class="text-xs text-theme-muted">Nenhum episódio neste bloco ainda. Clique em "+ Adicionar Episódios" abaixo ou use a lista à esquerda.</span>'}
       </div>
 
       <!-- Rodapé de Ações do Card -->
       <div class="flex items-center justify-between pt-1">
         <div class="flex items-center gap-2">
-          <button class="btn-open-range text-xs text-theme-sub hover:text-theme-main bg-theme-low border border-theme px-3 py-1.5 rounded-xl transition-colors font-medium">
-            + Intervalo (Ex: 1 a 8)
+          <button class="btn-open-range text-xs text-theme-sub hover:text-theme-main bg-theme-low border border-theme hover:border-accent-subtle px-3 py-1.5 rounded-xl transition-colors font-medium flex items-center gap-1.5" title="Adicionar episódios em lote por temporada e intervalo">
+            <span>📑</span> + Adicionar Episódios
           </button>
           <button class="btn-clear-arc text-xs text-theme-muted hover:text-rose-400 px-2 py-1.5 transition-colors">
             Limpar
           </button>
           <button class="btn-delete-arc text-xs text-theme-muted hover:text-rose-400 px-2 py-1.5 transition-colors">
-            Excluir Arco
+            Excluir Bloco
           </button>
         </div>
 
@@ -539,11 +661,32 @@ function renderArcs() {
       </div>
     `;
 
-    // Eventos do Card
-    card.querySelector(".input-arc-title").addEventListener("change", (e) => {
-      arc.title = e.target.value;
-    });
+    // Click no card seleciona como ativo se não for já
+    if (!isSelected) {
+      card.addEventListener("click", (e) => {
+        if (e.target.closest("button") || e.target.closest("input") || e.target.closest("label")) {
+          return;
+        }
+        setSelectedArc(arc.arc_id);
+      });
+      const btnSetTarget = card.querySelector(".btn-set-target");
+      if (btnSetTarget) {
+        btnSetTarget.addEventListener("click", (e) => {
+          e.stopPropagation();
+          setSelectedArc(arc.arc_id);
+        });
+      }
+    }
 
+    // Input do Título
+    const inputTitle = card.querySelector(".input-arc-title");
+    inputTitle.addEventListener("change", (e) => {
+      arc.title = e.target.value;
+      updateTargetArcUI();
+    });
+    inputTitle.addEventListener("click", (e) => e.stopPropagation());
+
+    // Toggles de OP/ED
     const toggleOp = card.querySelector(".toggle-op-ed");
     const subOptions = card.querySelector(".options-op-ed-sub");
     toggleOp.addEventListener("change", (e) => {
@@ -571,31 +714,48 @@ function renderArcs() {
       });
     }
 
+    // Remoção individual de episódio (atualiza também a lista da esquerda!)
     card.querySelectorAll(".btn-remove-ep").forEach(btn => {
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
         const p = btn.getAttribute("data-path");
         arc.episode_paths = arc.episode_paths.filter(x => x !== p);
         updateArcEstimatedDuration(arc);
         renderArcs();
+        renderEpisodes();
       });
     });
 
-    card.querySelector(".btn-open-range").addEventListener("click", () => {
+    // Abrir Modal de Adição em Lote
+    card.querySelector(".btn-open-range").addEventListener("click", (e) => {
+      e.stopPropagation();
       openModalRange(arc.arc_id);
     });
 
-    card.querySelector(".btn-clear-arc").addEventListener("click", () => {
+    // Limpar Bloco
+    card.querySelector(".btn-clear-arc").addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (arc.episode_paths.length === 0) return;
       arc.episode_paths = [];
       updateArcEstimatedDuration(arc);
       renderArcs();
+      renderEpisodes();
     });
 
-    card.querySelector(".btn-delete-arc").addEventListener("click", () => {
+    // Excluir Bloco
+    card.querySelector(".btn-delete-arc").addEventListener("click", (e) => {
+      e.stopPropagation();
       state.arcs.splice(index, 1);
+      if (state.selectedArcId === arc.arc_id) {
+        state.selectedArcId = state.arcs.length > 0 ? state.arcs[0].arc_id : null;
+      }
       renderArcs();
+      renderEpisodes();
     });
 
-    card.querySelector(".btn-build-arc").addEventListener("click", () => {
+    // Gerar Filme
+    card.querySelector(".btn-build-arc").addEventListener("click", (e) => {
+      e.stopPropagation();
       startBuildingArc(arc);
     });
 
@@ -604,11 +764,116 @@ function renderArcs() {
 }
 
 // =============================================================================
-// Modal de Intervalo de Episódios
+// Modal de Adição de Episódios em Lote (por Temporada e Intervalo)
 // =============================================================================
 
 function openModalRange(arcId) {
   state.activeArcIdForRange = arcId;
+  state.selectedArcId = arcId;
+  const targetArc = state.arcs.find(a => a.arc_id === arcId);
+
+  const badge = document.getElementById("range-target-arc-badge");
+  if (badge && targetArc) {
+    badge.textContent = targetArc.code;
+  }
+
+  // Agrupa episódios por temporada
+  const seasonMap = new Map();
+  let movieCount = 0;
+
+  state.episodes.forEach(ep => {
+    if (ep.is_movie) {
+      movieCount++;
+    } else {
+      const s = ep.season || 1;
+      if (!seasonMap.has(s)) {
+        seasonMap.set(s, { season: s, count: 0, minEp: ep.episode_num, maxEp: ep.episode_num });
+      }
+      const info = seasonMap.get(s);
+      info.count++;
+      info.minEp = Math.min(info.minEp, ep.episode_num);
+      info.maxEp = Math.max(info.maxEp, ep.episode_num);
+    }
+  });
+
+  const seasonSelect = document.getElementById("range-season");
+  seasonSelect.innerHTML = "";
+
+  const seasons = Array.from(seasonMap.values()).sort((a, b) => a.season - b.season);
+
+  seasons.forEach(s => {
+    const opt = document.createElement("option");
+    opt.value = s.season;
+    opt.textContent = `Temporada ${s.season} (${s.count} episódios)`;
+    seasonSelect.appendChild(opt);
+  });
+
+  if (movieCount > 0) {
+    const opt = document.createElement("option");
+    opt.value = 0;
+    opt.textContent = `Filmes / Especiais (${movieCount} itens)`;
+    seasonSelect.appendChild(opt);
+  }
+
+  // Escolhe temporada padrão com base no que já está no bloco
+  let defaultSeason = seasons.length > 0 ? seasons[0].season : 1;
+  if (targetArc && targetArc.episode_paths.length > 0) {
+    const lastPath = targetArc.episode_paths[targetArc.episode_paths.length - 1];
+    const lastEp = state.episodes.find(e => e.file_path === lastPath);
+    if (lastEp) {
+      defaultSeason = lastEp.is_movie ? 0 : (lastEp.season || 1);
+    }
+  }
+
+  seasonSelect.value = defaultSeason;
+
+  function updateInputsForSelectedSeason(seasonNum) {
+    const startInput = document.getElementById("range-start");
+    const endInput = document.getElementById("range-end");
+    const hint = document.getElementById("range-season-hint");
+
+    if (seasonNum === 0) {
+      startInput.value = 1;
+      endInput.value = movieCount || 1;
+      if (hint) hint.textContent = `${movieCount} filme(s) disponível(is)`;
+      return;
+    }
+
+    const sInfo = seasonMap.get(seasonNum);
+    if (sInfo) {
+      startInput.min = sInfo.minEp;
+      startInput.max = sInfo.maxEp;
+      endInput.min = sInfo.minEp;
+      endInput.max = sInfo.maxEp;
+
+      // Sugestão esperta: se já houver episódios dessa temporada no bloco, começa do próximo
+      let nextStart = sInfo.minEp;
+      if (targetArc && targetArc.episode_paths.length > 0) {
+        const addedSeasonEps = state.episodes.filter(e => 
+          targetArc.episode_paths.includes(e.file_path) && !e.is_movie && e.season === seasonNum
+        );
+        if (addedSeasonEps.length > 0) {
+          const maxAdded = Math.max(...addedSeasonEps.map(e => e.episode_num));
+          if (maxAdded < sInfo.maxEp) {
+            nextStart = maxAdded + 1;
+          }
+        }
+      }
+
+      startInput.value = nextStart;
+      endInput.value = Math.min(nextStart + 7, sInfo.maxEp);
+      if (hint) {
+        hint.textContent = `Episódios desta temporada: ${sInfo.minEp} a ${sInfo.maxEp} (total: ${sInfo.count})`;
+      }
+    }
+  }
+
+  seasonSelect.onchange = (e) => {
+    updateInputsForSelectedSeason(parseInt(e.target.value));
+  };
+
+  updateInputsForSelectedSeason(parseInt(seasonSelect.value));
+
   const modal = document.getElementById("modal-range");
   modal.classList.remove("opacity-0", "pointer-events-none");
   modal.querySelector("div").classList.remove("scale-95");
@@ -621,21 +886,28 @@ function closeModalRange() {
 }
 
 function onConfirmRange() {
-  const startNum = parseInt(document.getElementById("range-start").value) || 1;
+  const seasonSelect = document.getElementById("range-season");
+  const targetSeason = seasonSelect ? parseInt(seasonSelect.value) : 1;
+  const startNum = parseInt(document.getElementById("range-start").value) || 0;
   const endNum = parseInt(document.getElementById("range-end").value) || 1;
 
   if (state.activeArcIdForRange !== null) {
     const arc = state.arcs.find(a => a.arc_id === state.activeArcIdForRange);
     if (arc) {
-      state.episodes.forEach(ep => {
-        if (!ep.is_movie && ep.episode_num >= startNum && ep.episode_num <= endNum) {
-          if (!arc.episode_paths.includes(ep.file_path)) {
-            arc.episode_paths.push(ep.file_path);
-          }
+      const matching = state.episodes.filter(ep => {
+        const epSeason = ep.is_movie ? 0 : (ep.season || 1);
+        return epSeason === targetSeason && ep.episode_num >= startNum && ep.episode_num <= endNum;
+      }).sort((a, b) => a.episode_num - b.episode_num);
+
+      matching.forEach(ep => {
+        if (!arc.episode_paths.includes(ep.file_path)) {
+          arc.episode_paths.push(ep.file_path);
         }
       });
+
       updateArcEstimatedDuration(arc);
       renderArcs();
+      renderEpisodes();
     }
   }
   closeModalRange();
