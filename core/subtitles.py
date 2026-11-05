@@ -85,6 +85,7 @@ class SubtitleProcessor:
         merged_events: List[Tuple[float, str]] = []
         current_movie_time = 0.0
         script_info_lines: List[str] = []
+        has_captured_script_info = False
         styles_map: Dict[str, str] = {}
         styles_format_line: str = "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
         events_format_line: str = "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
@@ -128,26 +129,32 @@ class SubtitleProcessor:
                     in_info = True
                     in_styles = False
                     in_events = False
-                    if not script_info_lines:
+                    if not has_captured_script_info:
                         script_info_lines.append(line)
                     continue
                 elif stripped == "[V4+ Styles]" or stripped == "[V4 Styles]":
+                    if in_info and script_info_lines:
+                        has_captured_script_info = True
                     in_styles = True
                     in_info = False
                     in_events = False
                     continue
                 elif stripped == "[Events]":
+                    if in_info and script_info_lines:
+                        has_captured_script_info = True
                     in_events = True
                     in_info = False
                     in_styles = False
                     continue
                 elif stripped.startswith("["):
+                    if in_info and script_info_lines:
+                        has_captured_script_info = True
                     in_info = False
                     in_styles = False
                     in_events = False
                     continue
 
-                if in_info and not script_info_lines:
+                if in_info and not has_captured_script_info:
                     script_info_lines.append(line)
 
                 elif in_styles:
@@ -217,14 +224,52 @@ class SubtitleProcessor:
         out_p = Path(output_ass_path)
         out_p.parent.mkdir(parents=True, exist_ok=True)
 
+        # Garante integridade do bloco [Script Info] com resolução PlayResX/Y
+        playres_x = False
+        playres_y = False
+        scaled_shadow = False
+        script_type = False
+
+        cleaned_info: List[str] = []
+        if script_info_lines:
+            for l in script_info_lines:
+                cleaned_info.append(l if l.endswith("\n") else f"{l}\n")
+                low = l.strip().lower()
+                if low.startswith("playresx:"):
+                    playres_x = True
+                elif low.startswith("playresy:"):
+                    playres_y = True
+                elif low.startswith("scaledborderandshadow:"):
+                    scaled_shadow = True
+                elif low.startswith("scripttype:"):
+                    script_type = True
+
+        if not cleaned_info:
+            cleaned_info = [
+                "[Script Info]\n",
+                "Title: OmniArc Supercut Subtitles\n",
+                "ScriptType: v4.00+\n",
+                "PlayResX: 1920\n",
+                "PlayResY: 1080\n",
+                "WrapStyle: 0\n",
+                "ScaledBorderAndShadow: yes\n",
+                "YCbCr Matrix: TV.709\n",
+            ]
+        else:
+            if not script_type:
+                cleaned_info.append("ScriptType: v4.00+\n")
+            if not playres_x:
+                cleaned_info.append("PlayResX: 1920\n")
+            if not playres_y:
+                cleaned_info.append("PlayResY: 1080\n")
+            if not scaled_shadow:
+                cleaned_info.append("ScaledBorderAndShadow: yes\n")
+
         with open(out_p, "w", encoding="utf-8") as f:
-            if not script_info_lines:
-                f.write("[Script Info]\nTitle: OmniArc Supercut Subtitles\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 0\nScaledBorderAndShadow: yes\n\n")
-            else:
-                f.writelines(script_info_lines)
-                if not script_info_lines[-1].endswith("\n"):
-                    f.write("\n")
+            f.writelines(cleaned_info)
+            if not cleaned_info[-1].endswith("\n"):
                 f.write("\n")
+            f.write("\n")
 
             f.write("[V4+ Styles]\n")
             f.write(styles_format_line)
