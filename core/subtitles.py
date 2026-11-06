@@ -208,7 +208,11 @@ class SubtitleProcessor:
 
                     # Verifica se o evento está dentro de algum intervalo mantido
                     matched_offset = None
-                    if not intervals or len(intervals) <= 1:
+                    is_integral_ep = (
+                        not intervals or
+                        (len(intervals) == 1 and intervals[0][0] <= 0.5 and (ep.duration_seconds - intervals[0][1]) <= 1.0)
+                    )
+                    if is_integral_ep:
                         # Episódio sem cortes
                         matched_offset = (0.0, 0.0)
                     else:

@@ -29,21 +29,11 @@ class EpisodeSlicer:
         """
         temp_path = Path(temp_dir).resolve()
         temp_path.mkdir(parents=True, exist_ok=True)
-
         base_name = Path(ep.file_path).stem
-        mode_suffix = ""
-        if strip_op_ed and not ep.is_movie:
-            mode_suffix = f"_cut{'_kop' if keep_op else ''}{'_ked' if keep_ed else ''}"
-        else:
-            mode_suffix = "_full"
-        output_cut_file = temp_path / f"{base_name}{mode_suffix}.mkv"
 
         # Se não deve cortar OP/ED ou se for filme
         if not strip_op_ed or ep.is_movie:
             intervals = [(0.0, ep.duration_seconds, "Episódio Integral")]
-            if output_cut_file.is_file() and output_cut_file.stat().st_size > 1024:
-                return str(output_cut_file), intervals, ep.duration_seconds
-
             if PlatformAdapter.IS_LINUX:
                 symlink_target = temp_path / f"{base_name}_linked.mkv"
                 PlatformAdapter.create_symlink_or_copy(ep.file_path, str(symlink_target))
@@ -57,26 +47,41 @@ class EpisodeSlicer:
             keep_ed=keep_ed
         )
 
-        cut_duration = sum(end_t - start_t for start_t, end_t, _ in intervals)
+        # Verifica se o episódio deve ser mantido integral (sem nenhum corte efetivo)
+        is_integral = False
+        if not has_cuts:
+            is_integral = True
+        elif len(intervals) == 1:
+            start_t, end_t, _ = intervals[0]
+            if start_t <= 0.5 and (ep.duration_seconds - end_t) <= 1.0:
+                is_integral = True
 
-        # Se já foi fatiado e existe em cache, reutiliza
-        if output_cut_file.is_file() and output_cut_file.stat().st_size > 1024:
+        if is_integral:
             if on_progress:
-                on_progress(f"Arquivo fatiado em cache: {output_cut_file.name}")
-            actual_dur = PlatformAdapter.probe_file_duration(str(output_cut_file))
-            return str(output_cut_file), intervals, actual_dur if actual_dur > 0.0 else cut_duration
-
-        if not has_cuts or len(intervals) <= 1:
-            if on_progress:
-                on_progress(f"Sem corte de OP/ED para {ep.display_code} (mantido integral).")
+                on_progress(f"Sem cortes para {ep.display_code} (mantido integral).")
             if PlatformAdapter.IS_LINUX:
                 symlink_target = temp_path / f"{base_name}_linked.mkv"
                 PlatformAdapter.create_symlink_or_copy(ep.file_path, str(symlink_target))
                 return str(symlink_target), intervals, ep.duration_seconds
             return ep.file_path, intervals, ep.duration_seconds
 
+        cut_duration = sum(end_t - start_t for start_t, end_t, _ in intervals)
+
+        # Nome de cache baseado no hash dos intervalos exatos (evita reuso indevido se a seleção mudar)
+        import hashlib
+        intervals_sig = "-".join(f"{s:.2f}:{e:.2f}" for s, e, _ in intervals)
+        intervals_hash = hashlib.md5(intervals_sig.encode()).hexdigest()[:8]
+        output_cut_file = temp_path / f"{base_name}_cut_{intervals_hash}.mkv"
+
+        # Se já foi fatiado com os mesmos intervalos exatos e existe em cache, reutiliza
+        if output_cut_file.is_file() and output_cut_file.stat().st_size > 1024:
+            if on_progress:
+                on_progress(f"Arquivo fatiado em cache: {output_cut_file.name}")
+            actual_dur = PlatformAdapter.probe_file_duration(str(output_cut_file))
+            return str(output_cut_file), intervals, actual_dur if actual_dur > 0.0 else cut_duration
+
         if on_progress:
-            on_progress(f"Fatiando {ep.display_code}: mantendo {len(intervals)} segmentos (removendo OP/ED)...")
+            on_progress(f"Fatiando {ep.display_code}: mantendo {len(intervals)} segmento(s) com cortes...")
 
         # Prioriza o fatiamento nativo via mkvmerge para arquivos Matroska (MKV).
         # Evita avanço excessivo de keyframes do ffmpeg e une os segmentos em uma única passagem atômica.
