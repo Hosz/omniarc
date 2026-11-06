@@ -425,6 +425,7 @@ class SubtitleProcessor:
                 mkvmerge,
                 "-o", str(out_p),
                 "--no-subtitles",
+                "--no-chapters",
                 video_audio_file
             ]
 
@@ -440,11 +441,12 @@ class SubtitleProcessor:
                 ])
 
             if font_source_path and os.path.isfile(font_source_path):
-                # Anexa apenas fontes de estilo do arquivo de origem
+                # Anexa apenas fontes de estilo do arquivo de origem (sem vídeos, áudios, legendas ou capítulos)
                 cmd.extend([
                     "--no-video",
                     "--no-audio",
                     "--no-subtitles",
+                    "--no-chapters",
                     font_source_path
                 ])
 

@@ -95,6 +95,7 @@ class EpisodeSlicer:
                 mkvmerge,
                 "-o", str(output_cut_file),
                 "--no-subtitles",
+                "--no-chapters",
                 "--split", f"parts:{parts_spec}",
                 ep.file_path
             ]

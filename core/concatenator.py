@@ -40,6 +40,7 @@ class MovieConcatenator:
             cmd_mkv = [mkvmerge, "-o", str(out_p)]
             if video_audio_only:
                 cmd_mkv.append("--no-subtitles")
+            cmd_mkv.append("--no-chapters")
             cmd_mkv.append(input_files[0])
             for item in input_files[1:]:
                 cmd_mkv.extend(["+", item])
