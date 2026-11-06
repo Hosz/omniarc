@@ -5,6 +5,7 @@ import os
 import json
 import threading
 from pathlib import Path
+from dataclasses import asdict
 from typing import Dict, Any, Optional, List
 from core import (
     PlatformAdapter,
@@ -13,7 +14,10 @@ from core import (
     BuildPipeline,
     ArcBlock,
     ProjectConfig,
-    EpisodeInfo
+    EpisodeInfo,
+    ChapterInfo,
+    ChapterTranslator,
+    ChapterAnalyzer
 )
 
 
@@ -144,6 +148,110 @@ class OmniArcBridge:
             ep.external_sub_delay_ms = 0
             return {"success": True, "episode_path": episode_path}
         return {"success": False, "error": "Episódio não encontrado"}
+
+    # =========================================================================
+    # Gerenciamento e Tradução de Capítulos (Exibição, Seleção e mkvpropedit)
+    # =========================================================================
+
+    def get_episode_chapters(self, episode_path: str) -> Dict[str, Any]:
+        """Retorna os capítulos detectados no episódio, com tempos e status de corte."""
+        ep = self._episodes_cache.get(episode_path)
+        if not ep:
+            # Fallback caso não esteja no cache (inicializa no cache)
+            season, ep_num, display_code, is_movie = EpisodeScanner.parse_filename(Path(episode_path).name)
+            dur, streams, audio_sum, sub_cnt, sub_sum = EpisodeScanner.probe_streams(episode_path)
+            chaps = ChapterAnalyzer.probe_chapters(episode_path)
+            ep = EpisodeInfo(
+                file_path=episode_path,
+                file_name=Path(episode_path).name,
+                season=season,
+                episode_num=ep_num,
+                display_code=display_code,
+                duration_seconds=dur,
+                duration_formatted=EpisodeScanner.format_duration(dur),
+                is_movie=is_movie,
+                chapters=chaps,
+                streams=streams,
+                audio_summary=audio_sum,
+                subtitles_count=sub_cnt,
+                subtitles_summary=sub_sum
+            )
+            self._episodes_cache[episode_path] = ep
+
+        if not ep.chapters:
+            ep.chapters = ChapterAnalyzer.probe_chapters(episode_path)
+
+        return {
+            "success": True,
+            "episode_path": episode_path,
+            "display_code": ep.display_code,
+            "title": ep.title,
+            "duration_formatted": ep.duration_formatted,
+            "duration_seconds": ep.duration_seconds,
+            "chapters": [asdict(c) for c in ep.chapters]
+        }
+
+    def translate_episode_chapters(self, episode_path: str, enable_online: bool = True) -> Dict[str, Any]:
+        """Traduz os títulos dos capítulos de um episódio para PT-BR usando o motor híbrido."""
+        ep = self._episodes_cache.get(episode_path)
+        if not ep:
+            self.get_episode_chapters(episode_path)
+            ep = self._episodes_cache.get(episode_path)
+
+        if not ep or not ep.chapters:
+            return {"success": False, "error": "Capítulos não encontrados"}
+
+        ep.chapters = ChapterTranslator.translate_chapters(ep.chapters, enable_online=enable_online)
+        return {
+            "success": True,
+            "episode_path": episode_path,
+            "chapters": [asdict(c) for c in ep.chapters]
+        }
+
+    def save_episode_chapters_selection(self, episode_path: str, chapters_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Salva as opções de corte (kept) e títulos traduzidos no episódio em memória."""
+        ep = self._episodes_cache.get(episode_path)
+        if not ep:
+            self.get_episode_chapters(episode_path)
+            ep = self._episodes_cache.get(episode_path)
+
+        if not ep:
+            return {"success": False, "error": "Episódio não encontrado"}
+
+        new_chapters: List[ChapterInfo] = []
+        for d in chapters_data:
+            c = ChapterInfo(
+                start_time=float(d.get("start_time", 0.0)),
+                end_time=float(d.get("end_time", 0.0)),
+                title=str(d.get("title", "")),
+                is_op=bool(d.get("is_op", False)),
+                is_ed=bool(d.get("is_ed", False)),
+                kept=bool(d.get("kept", True)),
+                title_pt=d.get("title_pt")
+            )
+            new_chapters.append(c)
+
+        ep.chapters = new_chapters
+        return {
+            "success": True,
+            "episode_path": episode_path,
+            "chapters": [asdict(c) for c in ep.chapters]
+        }
+
+    def apply_chapters_to_file(self, episode_path: str, use_pt: bool = True) -> Dict[str, Any]:
+        """Aplica os capítulos traduzidos diretamente no arquivo MKV via mkvpropedit."""
+        ep = self._episodes_cache.get(episode_path)
+        if not ep or not ep.chapters:
+            self.get_episode_chapters(episode_path)
+            ep = self._episodes_cache.get(episode_path)
+
+        if not ep or not ep.chapters:
+            return {"success": False, "error": "Capítulos não encontrados para gravação"}
+
+        ok = ChapterTranslator.apply_chapters_to_mkv(episode_path, ep.chapters, use_pt=use_pt)
+        if ok:
+            return {"success": True, "message": "Capítulos gravados com sucesso no arquivo MKV!"}
+        return {"success": False, "error": "mkvpropedit falhou ou ferramenta não encontrada."}
 
     def save_project(self, project_data: Dict[str, Any], filepath: Optional[str] = None) -> Dict[str, Any]:
         """Salva a configuração do projeto atual em arquivo JSON."""

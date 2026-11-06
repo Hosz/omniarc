@@ -12,6 +12,12 @@ class ChapterInfo:
     title: str = "Segmento"
     is_op: bool = False
     is_ed: bool = False
+    kept: bool = True
+    title_pt: Optional[str] = None
+
+    @property
+    def duration_seconds(self) -> float:
+        return max(0.0, self.end_time - self.start_time)
 
 
 @dataclass

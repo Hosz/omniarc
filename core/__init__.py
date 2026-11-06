@@ -4,6 +4,7 @@ OmniArc Core Module
 from .models import ChapterInfo, StreamInfo, EpisodeInfo, ArcBlock, ProjectConfig
 from .platform_adapter import PlatformAdapter
 from .chapters import ChapterAnalyzer
+from .translator import ChapterTranslator
 from .scanner import EpisodeScanner
 from .slicer import EpisodeSlicer
 from .concatenator import MovieConcatenator
@@ -20,6 +21,7 @@ __all__ = [
     "ProjectConfig",
     "PlatformAdapter",
     "ChapterAnalyzer",
+    "ChapterTranslator",
     "EpisodeScanner",
     "EpisodeSlicer",
     "MovieConcatenator",

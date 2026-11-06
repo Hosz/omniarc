@@ -371,6 +371,67 @@
     </div>
   </div>
 
+  <!-- MODAL DE CAPÍTULOS & CORTES DETALHADOS -->
+  <div id="modal-chapters" class="fixed inset-0 bg-theme-base/75 backdrop-blur-sm z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+    <div class="bg-theme-surface border border-theme rounded-2xl p-6 w-full max-w-2xl shadow-2xl scale-95 transition-transform duration-200 flex flex-col max-h-[85vh]">
+      
+      <!-- Cabeçalho -->
+      <div class="flex items-center justify-between mb-1 shrink-0">
+        <h3 class="text-sm font-semibold text-theme-main flex items-center gap-2">
+          <span>🔖</span> Gerenciador de Capítulos &amp; Segmentos
+        </h3>
+        <span id="chap-modal-ep-code" class="text-xs font-mono px-2 py-0.5 rounded bg-theme-low text-theme-muted border border-theme">S01E01</span>
+      </div>
+      <p id="chap-modal-ep-title" class="text-xs text-theme-sub truncate mb-3 shrink-0">Nome do Episódio</p>
+
+      <!-- Barra de Ações Rápidas & Tradução -->
+      <div class="flex items-center justify-between gap-2 p-2.5 mb-3 bg-theme-low/50 border border-theme rounded-xl shrink-0">
+        <div class="flex items-center gap-2">
+          <button id="btn-chap-translate" class="px-3 py-1.5 rounded-lg bg-indigo-500/15 text-indigo-400 hover:bg-indigo-500/25 border border-indigo-500/30 text-xs font-medium flex items-center gap-1.5 transition-colors" title="Traduzir nomes dos capítulos para Português (PT-BR)">
+            <span>🌐</span> Traduzir Capítulos (PT-BR)
+          </button>
+          <button id="btn-chap-apply-mkv" class="px-2.5 py-1.5 rounded-lg bg-theme-low hover:bg-theme-hover text-theme-muted hover:text-theme-main border border-theme text-xs font-medium flex items-center gap-1 transition-colors" title="Salvar títulos traduzidos direto no arquivo MKV original via mkvpropedit">
+            <span>💾</span> Gravar no MKV
+          </button>
+        </div>
+        <div class="flex items-center gap-1.5 text-xs">
+          <span class="text-[11px] text-theme-muted mr-1">Seleção rápida:</span>
+          <button id="btn-chap-preset-strip" class="px-2 py-1 rounded bg-theme-base border border-theme text-[11px] text-theme-muted hover:text-theme-main hover:border-accent transition-colors" title="Remover Abertura e Encerramento">
+            Sem OP/ED
+          </button>
+          <button id="btn-chap-select-all" class="px-2 py-1 rounded bg-theme-base border border-theme text-[11px] text-theme-muted hover:text-theme-main hover:border-accent transition-colors" title="Marcar todos os capítulos para manter">
+            Manter Todos
+          </button>
+        </div>
+      </div>
+
+      <!-- Lista de Capítulos (Rolável) -->
+      <div class="flex-1 overflow-y-auto custom-scroll pr-1 mb-4 space-y-2" id="chap-modal-list">
+        <!-- Injetado dinamicamente -->
+      </div>
+
+      <!-- Resumo de Duração pós-corte -->
+      <div class="flex items-center justify-between p-3 bg-theme-low/40 border border-theme rounded-xl mb-4 shrink-0 text-xs">
+        <div class="flex items-center gap-3">
+          <span class="text-theme-muted">Duração Original: <strong id="chap-modal-orig-dur" class="text-theme-main font-mono">00m 00s</strong></span>
+          <span class="text-theme-muted">→</span>
+          <span class="text-theme-muted">Duração pós-corte: <strong id="chap-modal-final-dur" class="text-emerald-400 font-mono">00m 00s</strong></span>
+        </div>
+        <span id="chap-modal-diff-badge" class="text-[11px] px-2 py-0.5 rounded-full font-mono bg-theme-base border border-theme text-theme-muted">-00m 00s</span>
+      </div>
+
+      <!-- Rodapé -->
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-theme shrink-0">
+        <button id="btn-chap-modal-close" class="px-4 py-1.5 rounded-xl text-xs text-theme-sub hover:text-theme-main transition-colors">
+          Cancelar
+        </button>
+        <button id="btn-chap-modal-save" class="px-5 py-1.5 rounded-xl bg-accent font-semibold text-xs hover:opacity-95 transition-colors">
+          Salvar Seleção de Corte
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script src="js/app.js"></script>
 </body>
 </html>

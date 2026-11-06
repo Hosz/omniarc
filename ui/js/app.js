@@ -67,6 +67,8 @@ const state = {
   activeArcIdForRange: null,
   activeEpisodeForSub: null,
   tempSubPath: null,
+  activeEpisodeForChapters: null,
+  tempChapters: [],
   isProcessing: false,
   isDarkMode: true,
   currentAccent: "mint"
@@ -203,6 +205,14 @@ function setupEventListeners() {
       document.getElementById("sub-modal-delay-display").textContent = `${delay} ms`;
     });
   });
+
+  // Modal de Capítulos & Segmentos
+  document.getElementById("btn-chap-modal-close").addEventListener("click", closeModalChapters);
+  document.getElementById("btn-chap-modal-save").addEventListener("click", onSaveChaptersSettings);
+  document.getElementById("btn-chap-select-all").addEventListener("click", onSelectAllChapters);
+  document.getElementById("btn-chap-preset-strip").addEventListener("click", onPresetStripOpEd);
+  document.getElementById("btn-chap-translate").addEventListener("click", onTranslateChapters);
+  document.getElementById("btn-chap-apply-mkv").addEventListener("click", onApplyChaptersToMkv);
 }
 
 // =============================================================================
@@ -414,9 +424,19 @@ function renderEpisodes() {
       card.className = "episode-card bg-theme-surface border border-theme rounded-xl p-3 flex items-center justify-between group border-theme-hover shadow-sm transition-all";
     }
 
-    const badgeOpEd = ep.has_op_ed 
-      ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-accent-wash text-accent font-medium border border-accent-subtle">Capítulos OP/ED</span>`
-      : `<span class="text-[10px] px-2 py-0.5 rounded-full bg-theme-low text-theme-muted font-normal border border-theme">Completo</span>`;
+    // Selo de Capítulos / OP/ED com abertura de modal interativo
+    let badgeChapters = "";
+    if (ep.chapters && ep.chapters.length > 0) {
+      const hasCustom = ep.chapters.some(c => c.kept === false);
+      const customTxt = hasCustom ? " ✂️ Custom" : (ep.has_op_ed ? " (OP/ED)" : "");
+      badgeChapters = `
+        <button class="btn-open-chapters-modal text-[10px] px-2 py-0.5 rounded-full ${hasCustom ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30' : (ep.has_op_ed ? 'bg-accent-wash text-accent border border-accent-subtle' : 'bg-theme-low text-theme-muted border border-theme')} hover:brightness-110 font-medium flex items-center gap-1 transition-colors" title="Ver, traduzir e selecionar capítulos para corte">
+          <span>🔖 ${ep.chapters.length} Capítulos${customTxt}</span>
+        </button>
+      `;
+    } else {
+      badgeChapters = `<span class="text-[10px] px-2 py-0.5 rounded-full bg-theme-low text-theme-muted font-normal border border-theme">Sem Capítulos</span>`;
+    }
 
     // Selo de Legendas
     let badgeSub = "";
@@ -469,7 +489,7 @@ function renderEpisodes() {
           </span>
           <div class="flex items-center gap-2 mt-0.5">
             <span class="text-[11px] text-theme-muted">${ep.duration_formatted}</span>
-            ${badgeOpEd}
+            ${badgeChapters}
             ${badgeSub}
             ${otherArcBadge}
           </div>
@@ -481,6 +501,14 @@ function renderEpisodes() {
     card.querySelector(".btn-toggle-arc").addEventListener("click", () => {
       toggleEpisodeInCurrentArc(ep.file_path);
     });
+
+    const chapBtn = card.querySelector(".btn-open-chapters-modal");
+    if (chapBtn) {
+      chapBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openModalChapters(ep);
+      });
+    }
 
     const subBtn = card.querySelector(".btn-open-sub-modal");
     if (subBtn) {
@@ -1030,6 +1058,238 @@ async function onSaveSubtitleSettings() {
   await api.set_subtitle_delay(state.activeEpisodeForSub.file_path, delay);
 
   closeModalSubtitle();
+  renderEpisodes();
+}
+
+// =============================================================================
+// Modal de Gerenciamento e Seleção de Capítulos / Cortes
+// =============================================================================
+
+function formatSecondsToTime(seconds) {
+  if (!seconds || seconds < 0) seconds = 0;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+function openModalChapters(ep) {
+  state.activeEpisodeForChapters = ep;
+  state.tempChapters = JSON.parse(JSON.stringify(ep.chapters || []));
+  
+  // Garante que cada capítulo tenha a propriedade 'kept'
+  state.tempChapters.forEach(c => {
+    if (c.kept === undefined) c.kept = true;
+  });
+
+  document.getElementById("chap-modal-ep-code").textContent = ep.display_code;
+  document.getElementById("chap-modal-ep-title").textContent = ep.title;
+  document.getElementById("chap-modal-orig-dur").textContent = ep.duration_formatted;
+
+  renderModalChaptersList();
+
+  const modal = document.getElementById("modal-chapters");
+  modal.classList.remove("opacity-0", "pointer-events-none");
+  modal.querySelector("div").classList.remove("scale-95");
+}
+
+function closeModalChapters() {
+  const modal = document.getElementById("modal-chapters");
+  modal.classList.add("opacity-0", "pointer-events-none");
+  modal.querySelector("div").classList.add("scale-95");
+  state.activeEpisodeForChapters = null;
+  state.tempChapters = [];
+}
+
+function renderModalChaptersList() {
+  const container = document.getElementById("chap-modal-list");
+  if (!container) return;
+
+  if (state.tempChapters.length === 0) {
+    container.innerHTML = `
+      <div class="p-6 text-center text-theme-muted bg-theme-low/20 rounded-xl border border-theme">
+        <p class="text-xs">Nenhum capítulo detectado neste vídeo.</p>
+        <p class="text-[11px] text-theme-sub mt-1">O arquivo será mantido integralmente durante a compilação.</p>
+      </div>
+    `;
+    updateModalChaptersSummary();
+    return;
+  }
+
+  container.innerHTML = state.tempChapters.map((c, idx) => {
+    const isKept = c.kept !== false;
+    const durSec = Math.max(0, c.end_time - c.start_time);
+    const durFormatted = formatSecondsToTime(durSec);
+    const timeRange = `${formatSecondsToTime(c.start_time)} → ${formatSecondsToTime(c.end_time)}`;
+
+    let typeBadge = "";
+    if (c.is_op) {
+      typeBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">Abertura (OP)</span>`;
+    } else if (c.is_ed) {
+      typeBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded font-medium bg-rose-500/15 text-rose-400 border border-rose-500/30">Encerramento (ED)</span>`;
+    } else {
+      typeBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded bg-theme-base text-theme-muted border border-theme">Conteúdo</span>`;
+    }
+
+    const titleOriginal = c.title || `Capítulo ${idx + 1}`;
+    const titlePt = c.title_pt && c.title_pt !== titleOriginal 
+      ? `<span class="text-xs font-semibold text-theme-main">${c.title_pt}</span> <span class="text-[10px] text-theme-muted font-normal">(${titleOriginal})</span>` 
+      : `<span class="text-xs font-semibold text-theme-main">${titleOriginal}</span>`;
+
+    const statusBadge = isKept 
+      ? `<span class="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">✓ Manter</span>` 
+      : `<span class="text-[10px] font-semibold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/30">✕ Cortar</span>`;
+
+    const rowBg = isKept 
+      ? "bg-theme-base/60 border-theme hover:bg-theme-base" 
+      : "bg-theme-low/20 border-rose-500/20 opacity-60 hover:opacity-80";
+
+    return `
+      <div class="chap-row flex items-center justify-between p-2.5 rounded-xl border ${rowBg} transition-all cursor-pointer select-none" data-idx="${idx}">
+        <div class="flex items-center gap-3 min-w-0">
+          <input type="checkbox" class="chap-checkbox w-4 h-4 rounded text-accent focus:ring-0 cursor-pointer pointer-events-none" ${isKept ? 'checked' : ''}>
+          <span class="text-[11px] font-mono text-theme-muted font-bold shrink-0">#${idx + 1}</span>
+          <div class="flex flex-col min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              ${titlePt}
+              ${typeBadge}
+            </div>
+            <span class="text-[11px] font-mono text-theme-muted mt-0.5">${timeRange} (${durFormatted})</span>
+          </div>
+        </div>
+        <div class="shrink-0 ml-2">
+          ${statusBadge}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  // Adiciona evento de clique em cada linha
+  container.querySelectorAll(".chap-row").forEach(row => {
+    row.addEventListener("click", () => {
+      const idx = parseInt(row.getAttribute("data-idx"));
+      if (state.tempChapters[idx]) {
+        state.tempChapters[idx].kept = !state.tempChapters[idx].kept;
+        renderModalChaptersList();
+      }
+    });
+  });
+
+  updateModalChaptersSummary();
+}
+
+function updateModalChaptersSummary() {
+  const ep = state.activeEpisodeForChapters;
+  if (!ep) return;
+
+  let totalKeptSec = 0;
+  state.tempChapters.forEach(c => {
+    if (c.kept !== false) {
+      totalKeptSec += Math.max(0, c.end_time - c.start_time);
+    }
+  });
+
+  const origSec = ep.duration_seconds || 0;
+  const cutSec = Math.max(0, origSec - totalKeptSec);
+
+  document.getElementById("chap-modal-final-dur").textContent = formatSecondsToTime(totalKeptSec);
+  const diffBadge = document.getElementById("chap-modal-diff-badge");
+  if (cutSec > 0.5) {
+    diffBadge.textContent = `-${formatSecondsToTime(cutSec)} cortados`;
+    diffBadge.className = "text-[11px] px-2 py-0.5 rounded-full font-mono bg-rose-500/10 text-rose-400 border border-rose-500/30";
+  } else {
+    diffBadge.textContent = "Sem cortes (Integral)";
+    diffBadge.className = "text-[11px] px-2 py-0.5 rounded-full font-mono bg-theme-base text-theme-muted border border-theme";
+  }
+}
+
+function onSelectAllChapters() {
+  state.tempChapters.forEach(c => {
+    c.kept = true;
+  });
+  renderModalChaptersList();
+}
+
+function onPresetStripOpEd() {
+  state.tempChapters.forEach(c => {
+    if (c.is_op || c.is_ed) {
+      c.kept = false;
+    } else {
+      c.kept = true;
+    }
+  });
+  renderModalChaptersList();
+}
+
+async function onTranslateChapters() {
+  const ep = state.activeEpisodeForChapters;
+  if (!ep) return;
+
+  const btn = document.getElementById("btn-chap-translate");
+  const origHtml = btn.innerHTML;
+  btn.innerHTML = `<span>⏳</span> Traduzindo...`;
+  btn.disabled = true;
+
+  try {
+    const api = await getApi();
+    const res = await api.translate_episode_chapters(ep.file_path, true);
+    if (res.success && res.chapters) {
+      res.chapters.forEach((tc, idx) => {
+        if (state.tempChapters[idx]) {
+          state.tempChapters[idx].title_pt = tc.title_pt;
+        }
+      });
+      renderModalChaptersList();
+    } else {
+      alert(`Aviso ao traduzir: ${res.error || "Falha na tradução"}`);
+    }
+  } catch (err) {
+    alert(`Erro ao contatar API de tradução: ${err}`);
+  } finally {
+    btn.innerHTML = origHtml;
+    btn.disabled = false;
+  }
+}
+
+async function onApplyChaptersToMkv() {
+  const ep = state.activeEpisodeForChapters;
+  if (!ep) return;
+
+  if (!confirm(`Deseja gravar os capítulos traduzidos diretamente no arquivo MKV original?\n\nArquivo: ${ep.file_name}\n\nIsso usa o mkvpropedit de forma lossless instantânea sem modificar os fluxos de áudio e vídeo.`)) {
+    return;
+  }
+
+  const btn = document.getElementById("btn-chap-apply-mkv");
+  const origHtml = btn.innerHTML;
+  btn.innerHTML = `<span>⏳</span> Gravando...`;
+  btn.disabled = true;
+
+  try {
+    const api = await getApi();
+    await api.save_episode_chapters_selection(ep.file_path, state.tempChapters);
+    const res = await api.apply_chapters_to_file(ep.file_path, true);
+    if (res.success) {
+      alert("✅ Sucesso!\nOs capítulos traduzidos em PT-BR foram gravados no arquivo MKV!");
+    } else {
+      alert(`❌ Erro ao gravar: ${res.error || "Falha ao executar mkvpropedit"}`);
+    }
+  } catch (err) {
+    alert(`Erro: ${err}`);
+  } finally {
+    btn.innerHTML = origHtml;
+    btn.disabled = false;
+  }
+}
+
+async function onSaveChaptersSettings() {
+  const ep = state.activeEpisodeForChapters;
+  if (!ep) return;
+
+  ep.chapters = JSON.parse(JSON.stringify(state.tempChapters));
+  const api = await getApi();
+  await api.save_episode_chapters_selection(ep.file_path, ep.chapters);
+
+  closeModalChapters();
   renderEpisodes();
 }
 

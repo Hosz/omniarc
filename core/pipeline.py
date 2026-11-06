@@ -77,7 +77,7 @@ class BuildPipeline:
                 from .scanner import EpisodeScanner
                 from .chapters import ChapterAnalyzer
                 season, ep_num, display_code, is_movie = EpisodeScanner.parse_filename(Path(ep_path).name)
-                dur, streams, _ = EpisodeScanner.probe_streams(ep_path)
+                dur, streams, *_ = EpisodeScanner.probe_streams(ep_path)
                 chaps = ChapterAnalyzer.probe_chapters(ep_path)
                 ext_sub = EpisodeScanner.find_external_subtitle(Path(ep_path), season, ep_num)
                 ep_info = EpisodeInfo(

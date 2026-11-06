@@ -6,6 +6,7 @@ import json
 from typing import List, Dict, Any, Tuple
 from .models import ChapterInfo
 from .platform_adapter import PlatformAdapter
+from .translator import ChapterTranslator
 
 
 class ChapterAnalyzer:
@@ -46,13 +47,16 @@ class ChapterAnalyzer:
 
                 is_op = bool(cls.OP_PATTERN.search(title))
                 is_ed = bool(cls.ED_PATTERN.search(title))
+                title_pt = ChapterTranslator.translate_title(title, enable_online=False)
 
                 parsed.append(ChapterInfo(
                     start_time=start,
                     end_time=end,
                     title=title,
                     is_op=is_op,
-                    is_ed=is_ed
+                    is_ed=is_ed,
+                    kept=True,
+                    title_pt=title_pt
                 ))
             return parsed
         except Exception:
@@ -68,6 +72,8 @@ class ChapterAnalyzer:
     ) -> Tuple[List[Tuple[float, float, str]], bool]:
         """
         Calcula os intervalos contínuos a serem mantidos.
+        Prioriza seleções manuais do usuário (c.kept == False).
+        Fallback para remoção automática de OP/ED caso nenhuma seleção manual tenha sido feita.
         keep_op: se True, preserva a abertura (útil no 1º episódio do filme).
         keep_ed: se True, preserva o encerramento (útil no último episódio do filme).
         Retorna:
@@ -76,15 +82,30 @@ class ChapterAnalyzer:
         if not chapters:
             return [(0.0, total_duration, "Episódio Integral")], False
 
-        # Verifica se pelo menos uma abertura ou encerramento foi detectado
+        # 1. Se o usuário desmarcou capítulos manualmente na interface:
+        has_custom_cuts = any(not c.kept for c in chapters)
+        if has_custom_cuts:
+            kept_chapters = [c for c in chapters if c.kept]
+            if not kept_chapters:
+                return [(0.0, total_duration, "Episódio Integral")], False
+
+            intervals: List[Tuple[float, float, str]] = []
+            for c in kept_chapters:
+                lbl = c.title_pt or c.title
+                if intervals and abs(intervals[-1][1] - c.start_time) < 0.1:
+                    prev_start, _, prev_title = intervals.pop()
+                    intervals.append((prev_start, c.end_time, f"{prev_title} + {lbl}"))
+                else:
+                    intervals.append((c.start_time, c.end_time, lbl))
+
+            return intervals, True
+
+        # 2. Regra padrão automática baseada em OP/ED:
         has_op_or_ed = any(c.is_op or c.is_ed for c in chapters)
         if not has_op_or_ed:
-            # Sem marcadores explícitos: mantém o arquivo integral
             return [(0.0, total_duration, "Episódio Integral (Sem corte OP/ED)")], False
 
-        # Capítulos que serão mantidos:
-        # Descarta OP somente se keep_op for False
-        # Descarta ED somente se keep_ed for False
+        # Descarta OP somente se keep_op for False; descarta ED somente se keep_ed for False
         kept_chapters = [
             c for c in chapters 
             if not ((c.is_op and not keep_op) or (c.is_ed and not keep_ed))
@@ -94,13 +115,13 @@ class ChapterAnalyzer:
             return [(0.0, total_duration, "Episódio Integral")], False
 
         # Agrupa capítulos contíguos em intervalos maiores para otimizar cortes
-        intervals: List[Tuple[float, float, str]] = []
+        intervals = []
         for c in kept_chapters:
-            # Se o capítulo atual começa exatamente onde o anterior terminou, podemos juntar
+            lbl = c.title_pt or c.title
             if intervals and abs(intervals[-1][1] - c.start_time) < 0.1:
                 prev_start, _, prev_title = intervals.pop()
-                intervals.append((prev_start, c.end_time, f"{prev_title} + {c.title}"))
+                intervals.append((prev_start, c.end_time, f"{prev_title} + {lbl}"))
             else:
-                intervals.append((c.start_time, c.end_time, c.title))
+                intervals.append((c.start_time, c.end_time, lbl))
 
         return intervals, True
