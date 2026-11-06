@@ -104,6 +104,45 @@ class PlatformAdapter:
         return f"file '{escaped}'"
 
     @classmethod
+    def probe_file_duration(cls, file_path: str) -> float:
+        """Obtém a duração exata de um arquivo de mídia em segundos usando ffprobe."""
+        try:
+            ffprobe = cls.get_ffprobe()
+            cmd = [
+                ffprobe,
+                "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                file_path
+            ]
+            res = cls.run_command(cmd, check=False)
+            if res.returncode == 0 and res.stdout.strip():
+                return float(res.stdout.strip())
+        except Exception:
+            pass
+        return 0.0
+
+    @classmethod
+    def format_timestamp_mkvmerge(cls, seconds: float) -> str:
+        """Converte segundos float para formato de tempo aceito pelo mkvmerge (HH:MM:SS.mmm)."""
+        if seconds < 0:
+            seconds = 0.0
+        h = int(seconds // 3600)
+        m = int((seconds % 3600) // 60)
+        s = int(seconds % 60)
+        ms = int(round((seconds - int(seconds)) * 1000))
+        if ms >= 1000:
+            ms = 0
+            s += 1
+        if s >= 60:
+            s = 0
+            m += 1
+        if m >= 60:
+            m = 0
+            h += 1
+        return f"{h:02d}:{m:02d}:{s:02d}.{ms:03d}"
+
+    @classmethod
     def create_symlink_or_copy(cls, src: str, dst: str):
         """
         Cria link simbólico no Linux (zero I/O) ou copia/link no Windows.

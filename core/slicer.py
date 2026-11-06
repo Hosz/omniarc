@@ -63,7 +63,8 @@ class EpisodeSlicer:
         if output_cut_file.is_file() and output_cut_file.stat().st_size > 1024:
             if on_progress:
                 on_progress(f"Arquivo fatiado em cache: {output_cut_file.name}")
-            return str(output_cut_file), intervals, cut_duration
+            actual_dur = PlatformAdapter.probe_file_duration(str(output_cut_file))
+            return str(output_cut_file), intervals, actual_dur if actual_dur > 0.0 else cut_duration
 
         if not has_cuts or len(intervals) <= 1:
             if on_progress:
@@ -76,6 +77,30 @@ class EpisodeSlicer:
 
         if on_progress:
             on_progress(f"Fatiando {ep.display_code}: mantendo {len(intervals)} segmentos (removendo OP/ED)...")
+
+        # Prioriza o fatiamento nativo via mkvmerge para arquivos Matroska (MKV).
+        # Evita avanço excessivo de keyframes do ffmpeg e une os segmentos em uma única passagem atômica.
+        mkvmerge = PlatformAdapter.get_mkvmerge()
+        if mkvmerge and ep.file_path.lower().endswith(".mkv"):
+            parts_spec = ",+".join(
+                f"{PlatformAdapter.format_timestamp_mkvmerge(s)}-{PlatformAdapter.format_timestamp_mkvmerge(e)}"
+                for s, e, _ in intervals
+            )
+            cmd_mkvmerge_slice = [
+                mkvmerge,
+                "-o", str(output_cut_file),
+                "--no-subtitles",
+                "--split", f"parts:{parts_spec}",
+                ep.file_path
+            ]
+            res_mkv = PlatformAdapter.run_command(cmd_mkvmerge_slice, check=False)
+            if res_mkv.returncode in (0, 1) and output_cut_file.is_file() and output_cut_file.stat().st_size > 1024:
+                if on_progress:
+                    on_progress(f"Concluído corte de {ep.display_code} (via mkvmerge) -> {output_cut_file.name}")
+                actual_dur = PlatformAdapter.probe_file_duration(str(output_cut_file))
+                return str(output_cut_file), intervals, actual_dur if actual_dur > 0.0 else cut_duration
+            elif on_progress:
+                on_progress(f"Aviso: mkvmerge falhou ao fatiar {ep.display_code}, tentando fallback via FFmpeg...")
 
         ffmpeg = PlatformAdapter.get_ffmpeg()
         part_files: List[Path] = []
@@ -124,7 +149,8 @@ class EpisodeSlicer:
             if on_progress:
                 on_progress(f"Concluído corte de {ep.display_code} -> {output_cut_file.name}")
 
-            return str(output_cut_file), intervals, cut_duration
+            actual_dur = PlatformAdapter.probe_file_duration(str(output_cut_file))
+            return str(output_cut_file), intervals, actual_dur if actual_dur > 0.0 else cut_duration
 
         finally:
             # Limpeza das partes intermediárias de corte do episódio

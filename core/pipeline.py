@@ -74,10 +74,33 @@ class BuildPipeline:
 
             ep_info = episodes_map.get(ep_path)
             if not ep_info:
+                from .scanner import EpisodeScanner
+                from .chapters import ChapterAnalyzer
+                season, ep_num, display_code, is_movie = EpisodeScanner.parse_filename(Path(ep_path).name)
+                dur, streams, _ = EpisodeScanner.probe_streams(ep_path)
+                chaps = ChapterAnalyzer.probe_chapters(ep_path)
+                ext_sub = EpisodeScanner.find_external_subtitle(Path(ep_path), season, ep_num)
                 ep_info = EpisodeInfo(
                     file_path=ep_path,
-                    file_name=Path(ep_path).name
+                    file_name=Path(ep_path).name,
+                    season=season,
+                    episode_num=ep_num,
+                    display_code=display_code,
+                    duration_seconds=dur,
+                    is_movie=is_movie,
+                    chapters=chaps,
+                    streams=streams,
+                    external_sub_path=ext_sub
                 )
+            else:
+                if not ep_info.chapters:
+                    from .chapters import ChapterAnalyzer
+                    ep_info.chapters = ChapterAnalyzer.probe_chapters(ep_path)
+                if not ep_info.external_sub_path:
+                    from .scanner import EpisodeScanner
+                    ep_info.external_sub_path = EpisodeScanner.find_external_subtitle(
+                        Path(ep_path), ep_info.season, ep_info.episode_num
+                    )
 
             ep_pct = (idx / total_eps) * 40.0  # Fatiamento ocupa 0% a 40%
 

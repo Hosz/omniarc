@@ -94,8 +94,26 @@ class SubtitleProcessor:
 
         for ep, intervals, cut_duration in episodes_data:
             sub_file = ep.external_sub_path
+            extracted_temp_to_clean = None
             if not sub_file or not os.path.isfile(sub_file):
-                # Se não há legenda externa para este episódio, apenas avança o tempo do filme
+                # Fallback: tenta extrair faixa de legenda embutida do arquivo de vídeo original
+                if ep.file_path and os.path.isfile(ep.file_path):
+                    temp_extracted = Path(output_ass_path).parent / f"_extracted_{Path(ep.file_path).stem}.ass"
+                    cmd_extract = [
+                        PlatformAdapter.get_ffmpeg(),
+                        "-nostdin", "-v", "error", "-y",
+                        "-i", ep.file_path,
+                        "-map", "0:s:0",
+                        "-c", "copy",
+                        str(temp_extracted)
+                    ]
+                    res_ext = PlatformAdapter.run_command(cmd_extract, check=False)
+                    if res_ext.returncode == 0 and temp_extracted.is_file() and temp_extracted.stat().st_size > 100:
+                        sub_file = str(temp_extracted)
+                        extracted_temp_to_clean = temp_extracted
+
+            if not sub_file or not os.path.isfile(sub_file):
+                # Se não há legenda para este episódio, apenas avança o tempo do filme
                 current_movie_time += cut_duration
                 continue
 
@@ -107,6 +125,12 @@ class SubtitleProcessor:
             except Exception:
                 with open(sub_file, "r", encoding="latin-1", errors="replace") as f:
                     lines = f.readlines()
+            finally:
+                if extracted_temp_to_clean and extracted_temp_to_clean.exists():
+                    try:
+                        extracted_temp_to_clean.unlink()
+                    except Exception:
+                        pass
 
             # Processamento de Seções ASS
             in_info = False

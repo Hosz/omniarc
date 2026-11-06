@@ -33,6 +33,28 @@ class MovieConcatenator:
         out_p = Path(output_path).resolve()
         out_p.parent.mkdir(parents=True, exist_ok=True)
 
+        # Prioriza o mkvmerge para contêineres Matroska (.mkv)
+        # Garante união perfeita de timecodes e clusters sem artefatos de demuxing
+        mkvmerge = PlatformAdapter.get_mkvmerge()
+        if mkvmerge and all(f.lower().endswith(".mkv") for f in input_files):
+            cmd_mkv = [mkvmerge, "-o", str(out_p)]
+            if video_audio_only:
+                cmd_mkv.append("--no-subtitles")
+            cmd_mkv.append(input_files[0])
+            for item in input_files[1:]:
+                cmd_mkv.extend(["+", item])
+
+            if on_progress:
+                on_progress(0.0, f"Iniciando concatenação via mkvmerge: {out_p.name}...")
+
+            mkv_ok = cls._run_mkvmerge_with_progress(cmd_mkv, on_progress, cancel_check)
+            if mkv_ok and out_p.is_file() and out_p.stat().st_size > 1024:
+                return True
+            if cancel_check and cancel_check():
+                return False
+            if on_progress:
+                on_progress(0.0, "mkvmerge não concluiu a concatenação, recorrendo ao FFmpeg...")
+
         concat_list_file = temp_p / f"concat_list_{out_p.stem}.txt"
 
         # Escreve a lista formatada
@@ -141,6 +163,58 @@ class MovieConcatenator:
             if ret == 0:
                 if on_progress:
                     on_progress(100.0, "Concatenação concluída com sucesso!")
+                return True
+            return False
+        except Exception:
+            proc.kill()
+            return False
+
+    @classmethod
+    def _run_mkvmerge_with_progress(
+        cls,
+        cmd: List[str],
+        on_progress: Optional[Callable[[float, str], None]],
+        cancel_check: Optional[Callable[[], bool]]
+    ) -> bool:
+        extra_flags = PlatformAdapter.get_subprocess_flags()
+
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            **extra_flags
+        )
+
+        progress_pattern = re.compile(r"(?:Progress|Progresso):\s*(\d+)%")
+
+        try:
+            buf = ""
+            while True:
+                if cancel_check and cancel_check():
+                    proc.kill()
+                    return False
+
+                char = proc.stdout.read(1) if proc.stdout else ""
+                if not char and proc.poll() is not None:
+                    break
+
+                if char:
+                    if char in ("\r", "\n"):
+                        m = progress_pattern.search(buf)
+                        if m:
+                            pct = float(m.group(1))
+                            if on_progress:
+                                on_progress(pct, f"Concatenando via mkvmerge: {pct:.1f}%")
+                        buf = ""
+                    else:
+                        buf += char
+
+            ret = proc.wait()
+            if ret in (0, 1):
+                if on_progress:
+                    on_progress(100.0, "Concatenação mkvmerge concluída com sucesso!")
                 return True
             return False
         except Exception:
