@@ -15,7 +15,7 @@ class ChapterAnalyzer:
         re.IGNORECASE
     )
     ED_PATTERN = re.compile(
-        r"(?:ending|encerramento|^\s*ed\s*$|^\s*ed\s*\d*|\bending\s*song\b)",
+        r"(?:ending|encerramento|^\s*ed\s*$|^\s*ed\s*\d*|\bending\s*song\b|エンディング|preview|pr[eé]via|pr[oó]ximo\s*epis[oó]dio|next\s*episode|次回予告|予告|juju(?:tsu)?\s*(?:stroll|sanpo)|じゅじゅさんぽ|omake|teaser)",
         re.IGNORECASE
     )
 
@@ -92,7 +92,7 @@ class ChapterAnalyzer:
             intervals: List[Tuple[float, float, str]] = []
             for c in kept_chapters:
                 lbl = c.title_pt or c.title
-                if intervals and abs(intervals[-1][1] - c.start_time) < 0.1:
+                if intervals and abs(intervals[-1][1] - c.start_time) < 0.5:
                     prev_start, _, prev_title = intervals.pop()
                     intervals.append((prev_start, c.end_time, f"{prev_title} + {lbl}"))
                 else:
@@ -118,7 +118,7 @@ class ChapterAnalyzer:
         intervals = []
         for c in kept_chapters:
             lbl = c.title_pt or c.title
-            if intervals and abs(intervals[-1][1] - c.start_time) < 0.1:
+            if intervals and abs(intervals[-1][1] - c.start_time) < 0.5:
                 prev_start, _, prev_title = intervals.pop()
                 intervals.append((prev_start, c.end_time, f"{prev_title} + {lbl}"))
             else:

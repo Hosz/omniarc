@@ -1153,7 +1153,9 @@ function renderModalChaptersList() {
     if (c.is_op) {
       typeBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">Abertura (OP)</span>`;
     } else if (c.is_ed) {
-      typeBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded font-medium bg-rose-500/15 text-rose-400 border border-rose-500/30">Encerramento (ED)</span>`;
+      const isExtra = /preview|pr[eé]via|stroll|omake|teaser|extra|sanpo/i.test((c.title || "") + " " + (c.title_pt || ""));
+      const lbl = isExtra ? "Prévia / Extra" : "Encerramento (ED)";
+      typeBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded font-medium bg-rose-500/15 text-rose-400 border border-rose-500/30">${lbl}</span>`;
     } else {
       typeBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded bg-theme-base text-theme-muted border border-theme">Conteúdo</span>`;
     }
@@ -1437,7 +1439,9 @@ function renderModalArcChaptersList() {
       if (c.is_op) {
         typeBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">Abertura</span>`;
       } else if (c.is_ed) {
-        typeBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded font-medium bg-rose-500/15 text-rose-400 border border-rose-500/30">Encerramento</span>`;
+        const isExtra = /preview|pr[eé]via|stroll|omake|teaser|extra|sanpo/i.test((c.title || "") + " " + (c.title_pt || ""));
+        const lbl = isExtra ? "Prévia / Extra" : "Encerramento";
+        typeBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded font-medium bg-rose-500/15 text-rose-400 border border-rose-500/30">${lbl}</span>`;
       } else {
         typeBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded bg-theme-base text-theme-muted border border-theme">Conteúdo</span>`;
       }
