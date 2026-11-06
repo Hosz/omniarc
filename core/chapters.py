@@ -11,11 +11,15 @@ from .translator import ChapterTranslator
 
 class ChapterAnalyzer:
     OP_PATTERN = re.compile(
-        r"(?:opening|abertura|^\s*op\s*$|^\s*op\s*\d*|\bopening\s*song\b)",
+        r"(?:opening|abertura|^\s*op\s*$|^\s*op\s*\d*|\bopening\s*song\b|オープニング)",
         re.IGNORECASE
     )
     ED_PATTERN = re.compile(
-        r"(?:ending|encerramento|^\s*ed\s*$|^\s*ed\s*\d*|\bending\s*song\b|エンディング|preview|pr[eé]via|pr[oó]ximo\s*epis[oó]dio|next\s*episode|次回予告|予告|juju(?:tsu)?\s*(?:stroll|sanpo)|じゅじゅさんぽ|omake|teaser)",
+        r"(?:ending|encerramento|^\s*ed\s*$|^\s*ed\s*\d*|\bending\s*song\b|エンディング|credits?|créditos|staff)",
+        re.IGNORECASE
+    )
+    PREVIEW_PATTERN = re.compile(
+        r"(?:preview|pr[eé]via|pr[oó]ximo|next\s*episode|次回予告|予告|teaser|trailer|omake|extra|bonus)",
         re.IGNORECASE
     )
 
@@ -39,6 +43,7 @@ class ChapterAnalyzer:
             raw_chapters = data.get("chapters", [])
             parsed: List[ChapterInfo] = []
 
+            # 1. Primeira passada: classificação por palavras-chave universais da indústria
             for chap in raw_chapters:
                 start = float(chap.get("start_time", 0.0))
                 end = float(chap.get("end_time", 0.0))
@@ -47,6 +52,7 @@ class ChapterAnalyzer:
 
                 is_op = bool(cls.OP_PATTERN.search(title))
                 is_ed = bool(cls.ED_PATTERN.search(title))
+                is_preview = bool(cls.PREVIEW_PATTERN.search(title))
                 title_pt = ChapterTranslator.translate_title(title, enable_online=False)
 
                 parsed.append(ChapterInfo(
@@ -54,10 +60,38 @@ class ChapterAnalyzer:
                     end_time=end,
                     title=title,
                     is_op=is_op,
-                    is_ed=is_ed,
+                    is_ed=is_ed or is_preview,
                     kept=True,
                     title_pt=title_pt
                 ))
+
+            # 2. Heurística temporal / posicional genérica (Fallback para arquivos sem nomes descritivos, ex: BD-Rips com "Chapter 01", "Chapter 02")
+            has_op = any(c.is_op for c in parsed)
+            has_ed = any(c.is_ed for c in parsed)
+            if not has_op or not has_ed:
+                total_dur = parsed[-1].end_time if parsed else 0.0
+                for c in parsed:
+                    dur = c.end_time - c.start_time
+                    # Padrão universal de Anime/Séries (~85s a ~95s de música de abertura/encerramento)
+                    if 80.0 <= dur <= 100.0:
+                        if not has_op and c.start_time < 360.0:
+                            c.is_op = True
+                            has_op = True
+                        elif not has_ed and total_dur > 600.0 and c.start_time > (total_dur - 360.0):
+                            c.is_ed = True
+                            has_ed = True
+
+            # 3. Regra Estrutural Universal de Sequência:
+            # Qualquer capítulo posicionado a partir do Encerramento (inclusive) até o final do arquivo
+            # (ex: prévias, curtas pós-créditos, omakes ou nomes específicos de animes) é tratado
+            # automaticamente como parte do bloco de encerramento / extras a serem cortados.
+            has_seen_ed = False
+            for c in parsed:
+                if c.is_ed:
+                    has_seen_ed = True
+                elif has_seen_ed:
+                    c.is_ed = True
+
             return parsed
         except Exception:
             return []
