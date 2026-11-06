@@ -432,6 +432,72 @@
     </div>
   </div>
 
+  <!-- MODAL CONSOLIDADO DE CAPÍTULOS & TIMELINE DO FILME -->
+  <div id="modal-arc-chapters" class="fixed inset-0 bg-theme-base/80 backdrop-blur-sm z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+    <div class="bg-theme-surface border border-theme rounded-2xl p-6 w-full max-w-3xl shadow-2xl scale-95 transition-transform duration-200 flex flex-col max-h-[90vh]">
+      
+      <!-- Cabeçalho -->
+      <div class="flex items-center justify-between mb-1 shrink-0">
+        <h3 class="text-sm font-semibold text-theme-main flex items-center gap-2">
+          <span>🎬</span> Linha do Tempo &amp; Capítulos do Filme
+        </h3>
+        <span id="arc-chap-modal-code" class="text-xs font-mono px-2 py-0.5 rounded bg-accent-wash text-accent font-semibold border border-accent-subtle">Bloco 01</span>
+      </div>
+      <p id="arc-chap-modal-title" class="text-xs text-theme-sub truncate mb-3 shrink-0">Nome do Filme / Arco</p>
+
+      <!-- Barra de Ações Rápidas, Tradução e Configurações Globais -->
+      <div class="flex flex-wrap items-center justify-between gap-2.5 p-3 mb-3 bg-theme-low/50 border border-theme rounded-xl shrink-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <button id="btn-arc-chap-translate" class="px-3 py-1.5 rounded-lg bg-indigo-500/15 text-indigo-400 hover:bg-indigo-500/25 border border-indigo-500/30 text-xs font-medium flex items-center gap-1.5 transition-colors" title="Traduzir todos os capítulos de todos os episódios para PT-BR">
+            <span>🌐</span> Traduzir Todos (PT-BR)
+          </button>
+          <button id="btn-arc-chap-apply-mkv" class="px-2.5 py-1.5 rounded-lg bg-theme-low hover:bg-theme-hover text-theme-muted hover:text-theme-main border border-theme text-xs font-medium flex items-center gap-1 transition-colors" title="Salvar títulos traduzidos direto nos arquivos MKV de origem via mkvpropedit">
+            <span>💾</span> Gravar nos MKVs
+          </button>
+        </div>
+
+        <div class="flex items-center gap-2 text-xs flex-wrap">
+          <label class="flex items-center gap-1.5 text-xs text-theme-sub cursor-pointer mr-1" title="Grava subcapítulos (Parte A, Parte B, etc.) no arquivo final do filme multiplexado">
+            <input type="checkbox" id="arc-chap-toggle-detailed" class="accent-[var(--color-accent)] w-3.5 h-3.5 rounded cursor-pointer" checked>
+            <span class="font-medium text-theme-main">Capítulos Detalhados no Filme</span>
+          </label>
+          <span class="text-theme/60">|</span>
+          <button id="btn-arc-chap-preset-strip" class="px-2 py-1 rounded bg-theme-base border border-theme text-[11px] text-theme-muted hover:text-theme-main hover:border-accent transition-colors" title="Remover aberturas e encerramentos em todos os episódios">
+            Sem OP/ED
+          </button>
+          <button id="btn-arc-chap-select-all" class="px-2 py-1 rounded bg-theme-base border border-theme text-[11px] text-theme-muted hover:text-theme-main hover:border-accent transition-colors" title="Manter todos os capítulos de todos os episódios">
+            Manter Todos
+          </button>
+        </div>
+      </div>
+
+      <!-- Timeline & Lista de Episódios com seus Capítulos (Rolável) -->
+      <div class="flex-1 overflow-y-auto custom-scroll pr-1 mb-4 space-y-3" id="arc-chap-modal-list">
+        <!-- Injetado dinamicamente -->
+      </div>
+
+      <!-- Resumo Consolidado do Filme -->
+      <div class="flex items-center justify-between p-3 bg-theme-low/40 border border-theme rounded-xl mb-4 shrink-0 text-xs">
+        <div class="flex items-center gap-4 flex-wrap">
+          <span class="text-theme-muted">Episódios: <strong id="arc-chap-modal-eps-count" class="text-theme-main font-mono">0</strong></span>
+          <span class="text-theme-muted">Capítulos Ativos: <strong id="arc-chap-modal-chaps-count" class="text-theme-main font-mono">0 / 0</strong></span>
+          <span class="text-theme-muted">Duração do Filme: <strong id="arc-chap-modal-final-dur" class="text-emerald-400 font-mono">00m 00s</strong></span>
+        </div>
+        <span id="arc-chap-modal-diff-badge" class="text-[11px] px-2 py-0.5 rounded-full font-mono bg-theme-base border border-theme text-theme-muted">0s cortados</span>
+      </div>
+
+      <!-- Rodapé -->
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-theme shrink-0">
+        <button id="btn-arc-chap-modal-close" class="px-4 py-1.5 rounded-xl text-xs text-theme-sub hover:text-theme-main transition-colors">
+          Cancelar
+        </button>
+        <button id="btn-arc-chap-modal-save" class="px-5 py-1.5 rounded-xl bg-accent font-semibold text-xs hover:opacity-95 transition-colors">
+          Salvar Configurações do Filme
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script src="js/app.js"></script>
 </body>
 </html>

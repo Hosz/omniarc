@@ -311,28 +311,86 @@ class SubtitleProcessor:
     @classmethod
     def generate_chapters_file(
         cls,
-        episodes_data: List[Tuple[EpisodeInfo, float]],
-        output_chapters_path: str
+        episodes_data: List[Any],
+        output_chapters_path: str,
+        detailed: bool = True,
+        strip_op_ed: bool = True,
+        keep_first_op: bool = True,
+        keep_last_ed: bool = True
     ) -> bool:
         """
-        Gera arquivo de capítulos Matroska simples para navegação no reprodutor:
-        CHAPTER01=00:00:00.000
-        CHAPTER01NAME=Episódio 01 - Título
+        Gera arquivo de capítulos Matroska simples para navegação no reprodutor.
+        Suporta modo detalhado (preserva partes internas como Parte A, Parte B, etc.,
+        com tempos contínuos do filme e títulos traduzidos) ou modo resumido (1 por episódio).
         """
         out_p = Path(output_chapters_path)
         out_p.parent.mkdir(parents=True, exist_ok=True)
 
         current_time = 0.0
         lines = []
+        chap_num = 1
+        total_eps = len(episodes_data)
 
-        for idx, (ep, duration) in enumerate(episodes_data):
-            chap_num = idx + 1
-            ts_str = cls.format_chapter_time(current_time)
+        for idx, item in enumerate(episodes_data):
+            if len(item) == 3:
+                ep, intervals, duration = item
+            else:
+                ep, duration = item
+                intervals = None
+
+            is_first_ep = (idx == 0)
+            is_last_ep = (idx == total_eps - 1)
+            keep_op_for_this = bool(keep_first_op and is_first_ep)
+            keep_ed_for_this = bool(keep_last_ed and is_last_ep)
+
+            # Se detalhado e o episódio possui capítulos detectados
+            if detailed and ep.chapters:
+                has_custom = any(not c.kept for c in ep.chapters)
+                if has_custom:
+                    kept_chaps = [c for c in ep.chapters if c.kept]
+                elif strip_op_ed:
+                    kept_chaps = [
+                        c for c in ep.chapters
+                        if not ((c.is_op and not keep_op_for_this) or (c.is_ed and not keep_ed_for_this))
+                    ]
+                else:
+                    kept_chaps = list(ep.chapters)
+
+                if kept_chaps:
+                    rel_accum = 0.0
+                    for c in kept_chaps:
+                        raw_ts = current_time + rel_accum
+                        if chap_num == 1 and raw_ts < 1.0:
+                            ts_str = "00:00:00.000"
+                        else:
+                            ts_str = cls.format_chapter_time(raw_ts)
+
+                        raw_title = c.title_pt or c.title
+                        if not c.title_pt:
+                            from .translator import ChapterTranslator
+                            raw_title = ChapterTranslator.translate_title(c.title)
+
+                        name = f"{ep.display_code}: {raw_title}"
+                        lines.append(f"CHAPTER{chap_num:02d}={ts_str}\n")
+                        lines.append(f"CHAPTER{chap_num:02d}NAME={name}\n")
+                        chap_num += 1
+                        rel_accum += c.duration_seconds
+
+                    current_time += duration
+                    continue
+
+            # Fallback (ou não detalhado, ou episódio sem capítulos): 1 capítulo por episódio
+            if chap_num == 1 and current_time < 1.0:
+                ts_str = "00:00:00.000"
+            else:
+                ts_str = cls.format_chapter_time(current_time)
+
             title = ep.title or f"Episódio {ep.episode_num}"
             name = f"{ep.display_code} - {title}"
 
             lines.append(f"CHAPTER{chap_num:02d}={ts_str}\n")
             lines.append(f"CHAPTER{chap_num:02d}NAME={name}\n")
+            chap_num += 1
             current_time += duration
 
         with open(out_p, "w", encoding="utf-8") as f:

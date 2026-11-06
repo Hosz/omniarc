@@ -160,8 +160,14 @@ class BuildPipeline:
         has_subtitles = SubtitleProcessor.build_unified_ass(episodes_meta, str(unified_ass_path))
 
         chapters_path = temp_p / f"{arc.code}_chapters.txt"
-        episodes_for_chaps = [(ep, dur) for ep, _, dur in episodes_meta]
-        SubtitleProcessor.generate_chapters_file(episodes_for_chaps, str(chapters_path))
+        SubtitleProcessor.generate_chapters_file(
+            episodes_data=episodes_meta,
+            output_chapters_path=str(chapters_path),
+            detailed=getattr(arc, "detailed_chapters", True),
+            strip_op_ed=arc.strip_op_ed,
+            keep_first_op=arc.keep_first_op,
+            keep_last_ed=arc.keep_last_ed
+        )
 
         # Etapa 4: Multiplexação Final (Vídeo + Áudio + Legendas Ordenadas + Capítulos + Fontes)
         report("muxing", 88.0, f"Multiplexando filme final: {arc.output_filename}...")

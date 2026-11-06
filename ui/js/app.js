@@ -69,6 +69,8 @@ const state = {
   tempSubPath: null,
   activeEpisodeForChapters: null,
   tempChapters: [],
+  activeArcForChapters: null,
+  tempArcData: null,
   isProcessing: false,
   isDarkMode: true,
   currentAccent: "mint"
@@ -206,13 +208,21 @@ function setupEventListeners() {
     });
   });
 
-  // Modal de Capítulos & Segmentos
+  // Modal de Capítulos & Segmentos do Episódio
   document.getElementById("btn-chap-modal-close").addEventListener("click", closeModalChapters);
   document.getElementById("btn-chap-modal-save").addEventListener("click", onSaveChaptersSettings);
   document.getElementById("btn-chap-select-all").addEventListener("click", onSelectAllChapters);
   document.getElementById("btn-chap-preset-strip").addEventListener("click", onPresetStripOpEd);
   document.getElementById("btn-chap-translate").addEventListener("click", onTranslateChapters);
   document.getElementById("btn-chap-apply-mkv").addEventListener("click", onApplyChaptersToMkv);
+
+  // Modal Consolidado de Capítulos & Timeline do Filme
+  document.getElementById("btn-arc-chap-modal-close").addEventListener("click", closeModalArcChapters);
+  document.getElementById("btn-arc-chap-modal-save").addEventListener("click", onSaveArcChaptersSettings);
+  document.getElementById("btn-arc-chap-select-all").addEventListener("click", onSelectAllArcChapters);
+  document.getElementById("btn-arc-chap-preset-strip").addEventListener("click", onPresetStripOpEdArc);
+  document.getElementById("btn-arc-chap-translate").addEventListener("click", onTranslateArcChapters);
+  document.getElementById("btn-arc-chap-apply-mkv").addEventListener("click", onApplyArcChaptersToMkv);
 }
 
 // =============================================================================
@@ -623,6 +633,10 @@ function renderArcs() {
           Definir como Ativo
         </button>`;
 
+    const detailedBadge = arc.detailed_chapters !== false
+      ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium shrink-0" title="Capítulos detalhados ativados para este filme">✨ Detalhado</span>`
+      : `<span class="text-[10px] px-1.5 py-0.5 rounded bg-theme-low text-theme-muted border border-theme font-medium shrink-0" title="Apenas marcadores por episódio">Resumido</span>`;
+
     card.innerHTML = `
       <!-- Cabeçalho do Card -->
       <div class="flex items-start justify-between gap-4">
@@ -633,6 +647,7 @@ function renderArcs() {
             </span>
             <input type="text" value="${arc.title}" class="input-arc-title bg-transparent font-semibold text-sm text-theme-main focus:outline-none focus:border-b focus:border-accent transition-colors truncate w-full max-w-sm">
             ${activeStatusHtml}
+            ${detailedBadge}
           </div>
           <p class="text-xs text-theme-muted mt-1">
             ${arc.episode_paths.length} episódio(s) • Duração estimada: ~${arc.estimated_duration}
@@ -671,6 +686,9 @@ function renderArcs() {
         <div class="flex items-center gap-2">
           <button class="btn-open-range text-xs text-theme-sub hover:text-theme-main bg-theme-low border border-theme hover:border-accent-subtle px-3 py-1.5 rounded-xl transition-colors font-medium flex items-center gap-1.5" title="Adicionar episódios em lote por temporada e intervalo">
             <span>📑</span> + Adicionar Episódios
+          </button>
+          <button class="btn-open-arc-chapters text-xs text-theme-sub hover:text-theme-main bg-theme-low border border-theme hover:border-accent-subtle px-3 py-1.5 rounded-xl transition-colors font-medium flex items-center gap-1.5" title="Ver linha do tempo completa e gerenciar capítulos do filme">
+            <span>🔖</span> Capítulos do Filme
           </button>
           <button class="btn-clear-arc text-xs text-theme-muted hover:text-rose-400 px-2 py-1.5 transition-colors">
             Limpar
@@ -759,6 +777,15 @@ function renderArcs() {
       e.stopPropagation();
       openModalRange(arc.arc_id);
     });
+
+    // Abrir Modal de Capítulos do Filme
+    const btnArcChapters = card.querySelector(".btn-open-arc-chapters");
+    if (btnArcChapters) {
+      btnArcChapters.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openModalArcChapters(arc);
+      });
+    }
 
     // Limpar Bloco
     card.querySelector(".btn-clear-arc").addEventListener("click", (e) => {
@@ -1290,6 +1317,339 @@ async function onSaveChaptersSettings() {
   await api.save_episode_chapters_selection(ep.file_path, ep.chapters);
 
   closeModalChapters();
+  renderEpisodes();
+}
+
+// =============================================================================
+// Modal Consolidado de Capítulos & Timeline do Filme
+// =============================================================================
+
+async function openModalArcChapters(arc) {
+  if (!arc || !arc.episode_paths || arc.episode_paths.length === 0) {
+    alert("Adicione pelo menos um episódio ao bloco para visualizar e gerenciar os capítulos do filme.");
+    return;
+  }
+
+  state.activeArcForChapters = arc;
+  if (arc.detailed_chapters === undefined) arc.detailed_chapters = true;
+
+  document.getElementById("arc-chap-modal-code").textContent = arc.code;
+  document.getElementById("arc-chap-modal-title").textContent = `${arc.title} (${arc.episode_paths.length} episódios)`;
+  document.getElementById("arc-chap-toggle-detailed").checked = arc.detailed_chapters !== false;
+
+  const container = document.getElementById("arc-chap-modal-list");
+  container.innerHTML = `
+    <div class="p-8 text-center text-theme-muted">
+      <div class="inline-block animate-spin text-lg mb-2">⏳</div>
+      <p class="text-xs">Sondando e unificando linha do tempo dos capítulos...</p>
+    </div>
+  `;
+
+  const modal = document.getElementById("modal-arc-chapters");
+  modal.classList.remove("opacity-0", "pointer-events-none");
+  modal.querySelector("div").classList.remove("scale-95");
+
+  try {
+    const api = await getApi();
+    const res = await api.get_arc_chapters(arc);
+    if (res && res.success) {
+      state.tempArcData = res;
+      renderModalArcChaptersList();
+    } else {
+      container.innerHTML = `
+        <div class="p-6 text-center text-rose-400 bg-rose-500/10 rounded-xl border border-rose-500/20">
+          <p class="text-xs">Não foi possível carregar os capítulos: ${res?.error || 'Erro desconhecido'}</p>
+        </div>
+      `;
+    }
+  } catch (err) {
+    container.innerHTML = `
+      <div class="p-6 text-center text-rose-400 bg-rose-500/10 rounded-xl border border-rose-500/20">
+        <p class="text-xs">Erro ao carregar dados: ${err}</p>
+      </div>
+    `;
+  }
+}
+
+function closeModalArcChapters() {
+  const modal = document.getElementById("modal-arc-chapters");
+  modal.classList.add("opacity-0", "pointer-events-none");
+  modal.querySelector("div").classList.add("scale-95");
+  state.activeArcForChapters = null;
+  state.tempArcData = null;
+}
+
+function renderModalArcChaptersList() {
+  const container = document.getElementById("arc-chap-modal-list");
+  if (!container || !state.tempArcData) return;
+
+  const episodes = state.tempArcData.episodes || [];
+  if (episodes.length === 0) {
+    container.innerHTML = `
+      <div class="p-6 text-center text-theme-muted bg-theme-low/20 rounded-xl border border-theme">
+        <p class="text-xs">Nenhum episódio encontrado neste arco.</p>
+      </div>
+    `;
+    updateModalArcChaptersSummary();
+    return;
+  }
+
+  // Recalcula timestamps contínuos do filme com base nos capítulos marcados (kept)
+  let movieAccumTime = 0.0;
+  let totalActiveChaps = 0;
+  let totalChaps = 0;
+
+  episodes.forEach((ep) => {
+    let epKeptDuration = 0.0;
+    (ep.chapters || []).forEach((c) => {
+      totalChaps++;
+      const dur = Math.max(0, c.end_time - c.start_time);
+      if (c.kept !== false) {
+        c.movie_start_time = movieAccumTime + epKeptDuration;
+        c.movie_start_formatted = formatSecondsToTime(c.movie_start_time);
+        epKeptDuration += dur;
+        totalActiveChaps++;
+      } else {
+        c.movie_start_time = null;
+        c.movie_start_formatted = "--:--";
+      }
+    });
+
+    ep.movie_offset_seconds = movieAccumTime;
+    ep.movie_offset_formatted = formatSecondsToTime(movieAccumTime);
+    ep.cut_duration_seconds = epKeptDuration > 0 ? epKeptDuration : ep.duration_seconds;
+    movieAccumTime += ep.cut_duration_seconds;
+  });
+
+  state.tempArcData.total_movie_duration_seconds = movieAccumTime;
+  state.tempArcData.total_movie_duration_formatted = formatSecondsToTime(movieAccumTime);
+  state.tempArcData.kept_chapters = totalActiveChaps;
+  state.tempArcData.total_chapters = totalChaps;
+
+  container.innerHTML = episodes.map((ep, epIdx) => {
+    const epChapsHtml = (ep.chapters || []).map((c, cIdx) => {
+      const isKept = c.kept !== false;
+      const durSec = Math.max(0, c.end_time - c.start_time);
+      const durFormatted = formatSecondsToTime(durSec);
+      const epTimeRange = `${formatSecondsToTime(c.start_time)} → ${formatSecondsToTime(c.end_time)}`;
+
+      let typeBadge = "";
+      if (c.is_op) {
+        typeBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">Abertura</span>`;
+      } else if (c.is_ed) {
+        typeBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded font-medium bg-rose-500/15 text-rose-400 border border-rose-500/30">Encerramento</span>`;
+      } else {
+        typeBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded bg-theme-base text-theme-muted border border-theme">Conteúdo</span>`;
+      }
+
+      const titleOriginal = c.title || `Capítulo ${cIdx + 1}`;
+      const titlePt = c.title_pt && c.title_pt !== titleOriginal 
+        ? `<span class="text-xs font-semibold text-theme-main">${c.title_pt}</span> <span class="text-[10px] text-theme-muted font-normal">(${titleOriginal})</span>` 
+        : `<span class="text-xs font-semibold text-theme-main">${titleOriginal}</span>`;
+
+      const statusBadge = isKept 
+        ? `<span class="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">✓ No Filme</span>` 
+        : `<span class="text-[10px] font-semibold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/30">✕ Cortar</span>`;
+
+      const movieTimestampBadge = isKept 
+        ? `<span class="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-accent-wash text-accent border border-accent-subtle" title="Tempo de início no filme final">🎬 ${c.movie_start_formatted}</span>` 
+        : `<span class="text-[11px] font-mono text-theme-muted px-2 py-0.5 rounded bg-theme-base border border-theme">--:--</span>`;
+
+      const rowBg = isKept 
+        ? "bg-theme-surface border-theme hover:bg-theme-base" 
+        : "bg-theme-low/20 border-rose-500/20 opacity-55 hover:opacity-75";
+
+      return `
+        <div class="arc-chap-row flex items-center justify-between p-2.5 rounded-xl border ${rowBg} transition-all cursor-pointer select-none" data-ep-idx="${epIdx}" data-c-idx="${cIdx}">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <input type="checkbox" class="w-4 h-4 rounded text-accent focus:ring-0 cursor-pointer pointer-events-none" ${isKept ? 'checked' : ''}>
+            <div class="shrink-0">
+              ${movieTimestampBadge}
+            </div>
+            <div class="flex flex-col min-w-0">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                ${titlePt}
+                ${typeBadge}
+              </div>
+              <span class="text-[11px] font-mono text-theme-muted mt-0.5">Original: ${epTimeRange} (${durFormatted})</span>
+            </div>
+          </div>
+          <div class="shrink-0 ml-2">
+            ${statusBadge}
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    return `
+      <div class="bg-theme-low/40 rounded-xl border border-theme p-3 space-y-2">
+        <div class="flex items-center justify-between pb-1 border-b border-theme/60">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-accent-wash text-accent border border-accent-subtle">${ep.display_code}</span>
+            <span class="text-xs font-semibold text-theme-main">${ep.title || ep.file_name}</span>
+          </div>
+          <span class="text-[11px] font-mono text-theme-muted">Início no Filme: <strong class="text-theme-main">${ep.movie_offset_formatted}</strong></span>
+        </div>
+        <div class="space-y-1.5">
+          ${epChapsHtml || '<p class="text-xs text-theme-muted p-2">Sem capítulos cadastrados neste episódio.</p>'}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  container.querySelectorAll(".arc-chap-row").forEach(row => {
+    row.addEventListener("click", () => {
+      const epIdx = parseInt(row.getAttribute("data-ep-idx"));
+      const cIdx = parseInt(row.getAttribute("data-c-idx"));
+      const ep = state.tempArcData.episodes[epIdx];
+      if (ep && ep.chapters && ep.chapters[cIdx]) {
+        ep.chapters[cIdx].kept = !ep.chapters[cIdx].kept;
+        renderModalArcChaptersList();
+      }
+    });
+  });
+
+  updateModalArcChaptersSummary();
+}
+
+function updateModalArcChaptersSummary() {
+  if (!state.tempArcData) return;
+
+  const epsCount = (state.tempArcData.episodes || []).length;
+  const totalChaps = state.tempArcData.total_chapters || 0;
+  const keptChaps = state.tempArcData.kept_chapters || 0;
+  const finalDur = state.tempArcData.total_movie_duration_formatted || "00m 00s";
+
+  document.getElementById("arc-chap-modal-eps-count").textContent = epsCount;
+  document.getElementById("arc-chap-modal-chaps-count").textContent = `${keptChaps} / ${totalChaps}`;
+  document.getElementById("arc-chap-modal-final-dur").textContent = finalDur;
+
+  let origTotalSec = 0;
+  (state.tempArcData.episodes || []).forEach(ep => {
+    origTotalSec += ep.duration_seconds || 0;
+  });
+  const currentTotalSec = state.tempArcData.total_movie_duration_seconds || 0;
+  const cutSec = Math.max(0, origTotalSec - currentTotalSec);
+
+  const diffBadge = document.getElementById("arc-chap-modal-diff-badge");
+  if (cutSec > 0.5) {
+    diffBadge.textContent = `-${formatSecondsToTime(cutSec)} cortados do filme`;
+    diffBadge.className = "text-[11px] px-2 py-0.5 rounded-full font-mono bg-rose-500/10 text-rose-400 border border-rose-500/30";
+  } else {
+    diffBadge.textContent = "Sem cortes (Integral)";
+    diffBadge.className = "text-[11px] px-2 py-0.5 rounded-full font-mono bg-theme-base text-theme-muted border border-theme";
+  }
+}
+
+function onSelectAllArcChapters() {
+  if (!state.tempArcData || !state.tempArcData.episodes) return;
+  state.tempArcData.episodes.forEach(ep => {
+    (ep.chapters || []).forEach(c => {
+      c.kept = true;
+    });
+  });
+  renderModalArcChaptersList();
+}
+
+function onPresetStripOpEdArc() {
+  if (!state.tempArcData || !state.tempArcData.episodes) return;
+  const arc = state.activeArcForChapters;
+  const totalEps = state.tempArcData.episodes.length;
+
+  state.tempArcData.episodes.forEach((ep, idx) => {
+    const isFirst = (idx === 0);
+    const isLast = (idx === totalEps - 1);
+    const keepOp = Boolean(arc?.keep_first_op && isFirst);
+    const keepEd = Boolean(arc?.keep_last_ed && isLast);
+
+    (ep.chapters || []).forEach(c => {
+      if ((c.is_op && !keepOp) || (c.is_ed && !keepEd)) {
+        c.kept = false;
+      } else {
+        c.kept = true;
+      }
+    });
+  });
+  renderModalArcChaptersList();
+}
+
+async function onTranslateArcChapters() {
+  const arc = state.activeArcForChapters;
+  if (!arc) return;
+
+  const btn = document.getElementById("btn-arc-chap-translate");
+  const origHtml = btn.innerHTML;
+  btn.innerHTML = `<span>⏳</span> Traduzindo Capítulos...`;
+  btn.disabled = true;
+
+  try {
+    const api = await getApi();
+    const res = await api.translate_arc_chapters(arc, true);
+    if (res && res.success) {
+      state.tempArcData = res;
+      renderModalArcChaptersList();
+    } else {
+      alert(`Aviso ao traduzir: ${res?.error || "Falha na tradução"}`);
+    }
+  } catch (err) {
+    alert(`Erro ao traduzir capítulos do filme: ${err}`);
+  } finally {
+    btn.innerHTML = origHtml;
+    btn.disabled = false;
+  }
+}
+
+async function onApplyArcChaptersToMkv() {
+  const arc = state.activeArcForChapters;
+  if (!arc) return;
+
+  if (!confirm(`Deseja gravar os capítulos traduzidos diretamente em todos os ${arc.episode_paths.length} arquivos MKV de origem deste filme?\n\nIsso usa o mkvpropedit de forma lossless instantânea sem modificar os fluxos de vídeo e áudio.`)) {
+    return;
+  }
+
+  const btn = document.getElementById("btn-arc-chap-apply-mkv");
+  const origHtml = btn.innerHTML;
+  btn.innerHTML = `<span>⏳</span> Gravando nos MKVs...`;
+  btn.disabled = true;
+
+  try {
+    const api = await getApi();
+    await api.save_arc_chapters_selection(arc, state.tempArcData.episodes);
+    const res = await api.apply_arc_chapters_to_files(arc, true);
+    if (res && res.success) {
+      alert(`✅ Sucesso!\n${res.message || 'Capítulos gravados nos arquivos MKV!'}`);
+    } else {
+      alert(`❌ Erro ao gravar: ${res?.error || 'Falha ao executar mkvpropedit'}`);
+    }
+  } catch (err) {
+    alert(`Erro: ${err}`);
+  } finally {
+    btn.innerHTML = origHtml;
+    btn.disabled = false;
+  }
+}
+
+async function onSaveArcChaptersSettings() {
+  const arc = state.activeArcForChapters;
+  if (!arc || !state.tempArcData) return;
+
+  const isDetailed = document.getElementById("arc-chap-toggle-detailed").checked;
+  arc.detailed_chapters = isDetailed;
+
+  const api = await getApi();
+  await api.save_arc_chapters_selection(arc, state.tempArcData.episodes);
+
+  (state.tempArcData.episodes || []).forEach(remoteEp => {
+    const localEp = state.episodes.find(e => e.file_path === remoteEp.file_path);
+    if (localEp && remoteEp.chapters) {
+      localEp.chapters = remoteEp.chapters;
+    }
+  });
+
+  arc.estimated_duration = state.tempArcData.total_movie_duration_formatted;
+
+  closeModalArcChapters();
+  renderArcs();
   renderEpisodes();
 }
 

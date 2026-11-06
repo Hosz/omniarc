@@ -253,6 +253,130 @@ class OmniArcBridge:
             return {"success": True, "message": "Capítulos gravados com sucesso no arquivo MKV!"}
         return {"success": False, "error": "mkvpropedit falhou ou ferramenta não encontrada."}
 
+    def get_arc_chapters(self, arc_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Retorna a linha do tempo consolidada e os capítulos de todos os episódios do arco/filme,
+        calculando os timestamps contínuos do filme e respeitando os cortes definidos.
+        """
+        episode_paths = arc_data.get("episode_paths", [])
+        strip_op_ed = bool(arc_data.get("strip_op_ed", True))
+        keep_first_op = bool(arc_data.get("keep_first_op", True))
+        keep_last_ed = bool(arc_data.get("keep_last_ed", True))
+        detailed = bool(arc_data.get("detailed_chapters", True))
+
+        episodes_result = []
+        movie_accum_time = 0.0
+        total_chaps_count = 0
+        kept_chaps_count = 0
+
+        for idx, ep_path in enumerate(episode_paths):
+            ep = self._episodes_cache.get(ep_path)
+            if not ep or not ep.chapters:
+                self.get_episode_chapters(ep_path)
+                ep = self._episodes_cache.get(ep_path)
+
+            if not ep:
+                continue
+
+            is_first_ep = (idx == 0)
+            is_last_ep = (idx == len(episode_paths) - 1)
+            keep_op_for_this = bool(keep_first_op and is_first_ep)
+            keep_ed_for_this = bool(keep_last_ed and is_last_ep)
+
+            ep_chaps_data = []
+            ep_kept_duration = 0.0
+            has_custom = any(not c.kept for c in ep.chapters)
+
+            for c in ep.chapters:
+                total_chaps_count += 1
+                if has_custom:
+                    is_kept = bool(c.kept)
+                elif strip_op_ed:
+                    is_kept = not ((c.is_op and not keep_op_for_this) or (c.is_ed and not keep_ed_for_this))
+                else:
+                    is_kept = True
+
+                c_dur = c.duration_seconds
+                c_movie_start = movie_accum_time + ep_kept_duration if is_kept else None
+
+                if is_kept:
+                    kept_chaps_count += 1
+                    ep_kept_duration += c_dur
+
+                ep_chaps_data.append({
+                    "start_time": c.start_time,
+                    "end_time": c.end_time,
+                    "duration_seconds": c_dur,
+                    "title": c.title,
+                    "title_pt": c.title_pt,
+                    "is_op": c.is_op,
+                    "is_ed": c.is_ed,
+                    "kept": is_kept,
+                    "movie_start_time": c_movie_start,
+                    "movie_start_formatted": EpisodeScanner.format_duration(c_movie_start) if c_movie_start is not None else "--:--"
+                })
+
+            ep_duration = ep_kept_duration if ep_kept_duration > 0 else ep.duration_seconds
+
+            episodes_result.append({
+                "file_path": ep.file_path,
+                "file_name": ep.file_name,
+                "display_code": ep.display_code,
+                "title": ep.title,
+                "duration_formatted": ep.duration_formatted,
+                "duration_seconds": ep.duration_seconds,
+                "cut_duration_seconds": ep_duration,
+                "movie_offset_seconds": movie_accum_time,
+                "movie_offset_formatted": EpisodeScanner.format_duration(movie_accum_time),
+                "chapters": ep_chaps_data
+            })
+
+            movie_accum_time += ep_duration
+
+        return {
+            "success": True,
+            "arc_code": arc_data.get("code", "Filme"),
+            "arc_title": arc_data.get("title", "Novo Filme"),
+            "total_movie_duration_seconds": movie_accum_time,
+            "total_movie_duration_formatted": EpisodeScanner.format_duration(movie_accum_time),
+            "total_chapters": total_chaps_count,
+            "kept_chapters": kept_chaps_count,
+            "detailed_chapters": detailed,
+            "episodes": episodes_result
+        }
+
+    def translate_arc_chapters(self, arc_data: Dict[str, Any], enable_online: bool = True) -> Dict[str, Any]:
+        """Traduz os títulos dos capítulos de todos os episódios do arco/filme para PT-BR."""
+        episode_paths = arc_data.get("episode_paths", [])
+        for ep_path in episode_paths:
+            self.translate_episode_chapters(ep_path, enable_online=enable_online)
+        return self.get_arc_chapters(arc_data)
+
+    def save_arc_chapters_selection(self, arc_data: Dict[str, Any], episodes_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Salva a seleção de corte e títulos para todos os episódios do arco."""
+        for ep_dict in episodes_data:
+            ep_path = ep_dict.get("file_path")
+            chaps = ep_dict.get("chapters", [])
+            if ep_path and chaps:
+                self.save_episode_chapters_selection(ep_path, chaps)
+        return {"success": True}
+
+    def apply_arc_chapters_to_files(self, arc_data: Dict[str, Any], use_pt: bool = True) -> Dict[str, Any]:
+        """Aplica os capítulos traduzidos diretamente nos arquivos MKV de todos os episódios do arco."""
+        episode_paths = arc_data.get("episode_paths", [])
+        success_count = 0
+        total_count = len(episode_paths)
+        for ep_path in episode_paths:
+            res = self.apply_chapters_to_file(ep_path, use_pt=use_pt)
+            if res.get("success"):
+                success_count += 1
+        return {
+            "success": True,
+            "success_count": success_count,
+            "total_count": total_count,
+            "message": f"{success_count} de {total_count} arquivos MKV foram atualizados com sucesso via mkvpropedit!"
+        }
+
     def save_project(self, project_data: Dict[str, Any], filepath: Optional[str] = None) -> Dict[str, Any]:
         """Salva a configuração do projeto atual em arquivo JSON."""
         try:
@@ -267,6 +391,7 @@ class OmniArcBridge:
                     strip_op_ed=bool(a.get("strip_op_ed", True)),
                     keep_first_op=bool(a.get("keep_first_op", True)),
                     keep_last_ed=bool(a.get("keep_last_ed", True)),
+                    detailed_chapters=bool(a.get("detailed_chapters", True)),
                     estimated_duration=a.get("estimated_duration", "00h 00m")
                 ))
 
@@ -339,6 +464,7 @@ class OmniArcBridge:
             strip_op_ed=bool(arc_data.get("strip_op_ed", True)),
             keep_first_op=bool(arc_data.get("keep_first_op", True)),
             keep_last_ed=bool(arc_data.get("keep_last_ed", True)),
+            detailed_chapters=bool(arc_data.get("detailed_chapters", True)),
             estimated_duration=arc_data.get("estimated_duration", "00h 00m")
         )
 
