@@ -11,7 +11,11 @@ O **OmniArc** é um aplicativo desktop moderno e multiplataforma (**Linux e Wind
 - **Multiplataforma Nativo:** Funciona com a mesma base de código no **Linux** (CachyOS/KDE, Ubuntu, etc.) e no **Windows** (10 e 11).
 - **Seleção Livre de Diretórios:** Escolha qualquer pasta de episódios (HD externo, SSD ou rede) e qualquer pasta de destino para salvar os filmes.
 - **Detecção Inteligente de Episódios:** Scanner automático compatível com padrões comuns (`S01E01`, `01`, `1x01`, `[Fansub] Nome 01.mkv`).
-- **Corte Inteligente de OP/ED:** Detecta aberturas e encerramentos diretamente pelos capítulos do arquivo MKV. Se o episódio não contiver marcações de corte, mantém o arquivo integral com aviso visual na tela.
+- **Corte Inteligente de OP/ED:** Heurística estrutural e temporal avançada para detecção de aberturas, encerramentos e prévias sem dependência de palavras-chave específicas da obra.
+- **Inspetor e Gerenciador de Capítulos:** Visualização interativa da linha do tempo por episódio, permitindo ajuste manual ou remoção de intervalos de corte com precisão de milissegundos.
+- **Tradução de Capítulos com IA:** Localização automática de títulos de capítulos para PT-BR com glossário canônico oficial.
+- **Preservação de Capítulos no Filme Final:** Consolidação contínua da linha do tempo do arco no MKV final (em conformidade com Matroska XML/OGM).
+- **Legendas Externas e Sincronização Precisa:** Suporte a arquivos externos `.srt`, `.ass` e `.vtt` com offset manual de sincronia e unificação mono-temporal à prova de desync.
 - **Concatenação 100% Lossless:** Junção instantânea sem perda de qualidade, preservando todas as faixas de áudio (Dual Audio, 5.1, etc.) e legendas embutidas.
 - **Interface Minimalista e Zen:** Desenvolvida em PyWebView com tons escuros suaves de ardósia e toques em verde menta pastel, sem sobrecarga de informações.
 - **Salvar / Carregar Projetos:** Exporte ou recarregue a estrutura dos seus arcos em arquivos `.json` com um clique.

@@ -1,6 +1,8 @@
 ; OmniArc Inno Setup Script
 #define MyAppName "OmniArc"
-#define MyAppVersion "1.0.0"
+#ifndef MyAppVersion
+#define MyAppVersion "1.2.0"
+#endif
 #define MyAppPublisher "Hosz"
 #define MyAppURL "https://github.com/Hosz/omniarc"
 #define MyAppExeName "omniarc.exe"
@@ -17,7 +19,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
 DefaultGroupName={#MyAppName}
 OutputDir=..\..\dist-release
-OutputBaseFilename=OmniArc-Setup-v1.0.0
+OutputBaseFilename=OmniArc-Setup-v{#MyAppVersion}
 SetupIconFile=..\..\assets\icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
